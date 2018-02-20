@@ -69,7 +69,7 @@ class Dataset():
         """
         Load a batch of images for the timestamps in 'timestamps'
         The argument 'timestamps' is a list of timestamps defining the batch, most likely one/two timestamp(s).
-        Returns a numpy array of shape (len(timestamps),1920,2560,3) of type np.uint8
+        Returns a numpy array of shape (len(timestamps),1920,2560,3) of type np.float32 with range [0,1].
         """
         
         batch = np.empty((12*len(timestamps),)+(self.image_shape), np.uint8) #use self.image_shape
@@ -83,7 +83,17 @@ class Dataset():
                         
                     batch[i,:] = dl.load_image(timestamp, dl.TYPE_CAMERA,(cam,lens))
                     i+=1
+                    
         return batch.astype('float32') / 255.
+    
+    def generate_batches(self):
+        """
+        Returns a Python generator that generates batches of data indefinetily. To be used in Keras fit_generator().
+        """
+        for timestamp in self.timestamp_list:
+            x_batch = self.load_batch([timestamp])
+            yield (x_batch, x_batch)
+        
             
         
     def vel_to_speed(self, vel):
@@ -94,37 +104,40 @@ class Dataset():
         raise NotImplementedError
     
     
-"""
-ds = Dataset()
-
-ds.get_timestamp_list()
-#print(ds.timestamp_list[:1])
-#print(len(ds.timestamp_list))
-batch = ds.load_batch(ds.timestamp_list[:2])
-Image.fromarray(batch[0,:]).show()
-
-
-#write to file
-with open('timestamps','wb') as fp:
-    pickle.dump(ds.timestamp_list,fp)
-
-# read from file
-with open('timestamps','rb') as fp:
-    l = pickle.load(fp)
-    batch = ds.load_batch(l[:1])
-    #print(batch.shape)
-
-
-
-### HOW TO USE DATALOADER TO GET IMAGE ###
-file_basename = '/nas0/2017-10-22/2017-10-22-11/Cam2/Lens1/2017-10-22-11_00_00'
-dl = DataLoader(path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
-sensortype, sensor = dl.get_sensor_from_basename(file_basename)
-folder = dl.get_sensor_folder(sensortype, sensor)
-t = dl.get_time_from_basename(file_basename)
-#im = dl.load_image(t,sensortype,sensor)
-#Image.fromarray(im).show()
-### --------------- ###
-
-"""
-
+if __name__ == "__main__":
+    
+    ds = Dataset()
+    
+    ds.get_timestamp_list()
+    #print(ds.timestamp_list[:1])
+    #print(len(ds.timestamp_list))
+    #batch = ds.load_batch(ds.timestamp_list[:2])
+    #Image.fromarray(batch[0,:]).show()
+    
+    """
+    #write to file
+    with open('timestamps','wb') as fp:
+        pickle.dump(ds.timestamp_list,fp)
+        print("Timestamps written to file")
+    
+    # read from file
+    with open('timestamps','rb') as fp:
+        l = pickle.load(fp)
+        batch = ds.load_batch(l[:1])
+        print("Timestamps read from file")
+    """
+    
+    """
+    
+    ### HOW TO USE DATALOADER TO GET IMAGE ###
+    file_basename = '/nas0/2017-10-22/2017-10-22-11/Cam2/Lens1/2017-10-22-11_00_00'
+    dl = DataLoader(path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
+    sensortype, sensor = dl.get_sensor_from_basename(file_basename)
+    folder = dl.get_sensor_folder(sensortype, sensor)
+    t = dl.get_time_from_basename(file_basename)
+    #im = dl.load_image(t,sensortype,sensor)
+    #Image.fromarray(im).show()
+    ### --------------- ###
+        
+    """ 
+        

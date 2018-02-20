@@ -8,7 +8,7 @@ Created on Thu Feb  8 15:40:09 2018
 
 from keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose
 from keras.models import Model
-from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, Callback
+from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 
 
 class Autoencoder:
@@ -18,6 +18,10 @@ class Autoencoder:
         
        
     def create_autoencoder(self):
+        """
+        Creates the autoencoder.
+        Could be called in __init__ ?
+        """
 
         # conv layer parameters
         conv_kernel_size1 = 4
@@ -25,7 +29,7 @@ class Autoencoder:
         #conv_kernel_size2 = 4
         #conv_strides2 = (3,4)
         
-        filters = [16,32,64,128,256,512]
+        filters = [4,8,16,32,64,128,256,512]
         
         input_image = Input(shape=self.input_shape)
         
@@ -41,19 +45,23 @@ class Autoencoder:
         self.model = autoencoder
         
     def train(self, dataset, epochs, batch_size, val_split):
+        """
+        Train by the use of train_on_batch().
+        Callbacks are not used.
+        """
         
         ds = dataset
         
         batches_per_epoch = ds.size//(batch_size//12)
         train_batches = int((1-val_split)*batches_per_epoch)
-        val_batches = batches_per_epoch-train_batches
+        val_batches = batches_per_epoch - train_batches
         
         for epoch in range(epochs):
             print('Epoch', epoch+1, '/',epochs)
             
             # train
             for train_batch in range(train_batches):
-                print('T-Batch', train_batch+1, '/',train_batches,'. Total batches', batches_per_epoch)
+                print('Training batch '+str(train_batch+1)+'/'+str(train_batches)+'. Total batches '+str(batches_per_epoch))
                 
                 x_batch = ds.load_batch(ds.timestamp_list[train_batch:train_batch+batch_size//12])
                                 
@@ -61,16 +69,34 @@ class Autoencoder:
             
             # validate
             for val_batch in range(train_batches,batches_per_epoch):
-                print('V-Batch', val_batch+1, '/','total batches', batches_per_epoch)
+                print('ValBatch', val_batch+1, '/','total batches', batches_per_epoch)
                 
                 x_batch = ds.load_batch(ds.timestamp_list[val_batch:val_batch+batch_size//12])
 
                 self.model.test_on_batch(x_batch,x_batch)
-            
-from datahandler import Dataset
+                
+
+    def train2(self, dataset, epochs, batch_size, val_split):
+        """
+        Train by the use of fit_generator().
+        """
+        assert(batch_size/12 != 0)
         
-def main():
+        ds = dataset
+        
+        batches_per_epoch = ds.size//(batch_size//12)
+        train_batches = int((1-val_split)*batches_per_epoch)
+        val_batches = batches_per_epoch-train_batches
+        
+        callbacks_list = [EarlyStopping(monitor='val_loss', patience=1), ModelCheckpoint, TensorBoard]
+        
+        self.model.fit_generator(generator = ds.generate_batches(), steps_per_epoch = batches_per_epoch)  
+
+            
+if __name__ == "__main__":
     
+    from datahandler import Dataset
+
     # initialize model
     ae = Autoencoder()
     ae.create_autoencoder()
@@ -86,7 +112,5 @@ def main():
     epochs = 1
     batch_size = 24
     val_split = 0.1
-    ae.train(ds, epochs, batch_size, val_split)
+    ae.train2(ds, epochs, batch_size, val_split)
 
-
-main()
