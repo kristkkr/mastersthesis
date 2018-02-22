@@ -47,14 +47,16 @@ class Autoencoder:
     def train(self, dataset, epochs, batch_size, val_split):
         """
         Train by the use of train_on_batch().
+        Uses Dataloader.load_batch()
         Callbacks are not used.
+        
+        NOT UPDATED
         """
         
         ds = dataset
         
-        batches_per_epoch = ds.size//(batch_size//12)
+        batches_per_epoch = len(ds.timestamp_list)//(batch_size//12)
         train_batches = int((1-val_split)*batches_per_epoch)
-        val_batches = batches_per_epoch - train_batches
         
         for epoch in range(epochs):
             print('Epoch', epoch+1, '/',epochs)
@@ -62,6 +64,7 @@ class Autoencoder:
             # train
             for train_batch in range(train_batches):
                 print('Training batch '+str(train_batch+1)+'/'+str(train_batches)+'. Total batches '+str(batches_per_epoch))
+                print(ds.timestamp_list[train_batch:train_batch+batch_size//12])
                 
                 x_batch = ds.load_batch(ds.timestamp_list[train_batch:train_batch+batch_size//12])
                                 
@@ -76,22 +79,31 @@ class Autoencoder:
                 self.model.test_on_batch(x_batch,x_batch)
                 
 
-    def train2(self, dataset, epochs, batch_size, val_split):
+    def train_generator(self, dataset, epochs, batch_size, val_split):
         """
-        Train by the use of fit_generator().
-        """
-        assert(batch_size/12 != 0)
+        Train by the use of fit_generator(). 
+        Uses Dataloader.generate_batches()
+        Allows for callbacks.
         
+        Status: needs validation
+        """        
         ds = dataset
         
-        batches_per_epoch = ds.size//(batch_size//12)
+        assert(batch_size % ds.IMAGES_PER_TIMESTAMP == 0)
+                
+        batches_per_epoch = len(ds.timestamp_list)//(batch_size//ds.IMAGES_PER_TIMESTAMP) ## use len(ds.timestamp_list) instead of ds. size
         train_batches = int((1-val_split)*batches_per_epoch)
         val_batches = batches_per_epoch-train_batches
         
-        callbacks_list = [EarlyStopping(monitor='val_loss', patience=1), ModelCheckpoint, TensorBoard]
+        #val_loss=0
         
-        self.model.fit_generator(generator = ds.generate_batches(), steps_per_epoch = batches_per_epoch)  
-
+        callback_list = [EarlyStopping(monitor='train_loss', patience=1), 
+                         ModelCheckpoint('results/model.hdf5', verbose=1, save_best_only=True),
+                         TensorBoard(log_dir='log/./logs', batch_size=batch_size, write_images=True)]
+                        
+        train_gen = ds.generate_batches(batch_size)
+        h = self.model.fit_generator(train_gen, batches_per_epoch, epochs, callbacks = callback_list)  
+        
             
 if __name__ == "__main__":
     
@@ -104,13 +116,13 @@ if __name__ == "__main__":
     
     # initialize data
     ds = Dataset()
-    
-    ds.get_timestamp_list(randomize=True)
-    ds.size = len(ds.timestamp_list)
+    ds.read_timestamps_file('timestamps2017-10-22-11-sampled')
+    #ds.get_timestamp_list(randomize=True)
+    #ds.size = len(ds.timestamp_list)
     
     # hyperparameters
-    epochs = 1
-    batch_size = 24
+    epochs = 100
+    batch_size = 12*2
     val_split = 0.1
-    ae.train2(ds, epochs, batch_size, val_split)
+    ae.train_generator(ds, epochs, batch_size, val_split)
 
