@@ -34,9 +34,12 @@ class Autoencoder:
         input_image = Input(shape=self.input_shape)
         
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(input_image)
+        x = BatchNormalization()(x)
         x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
         ### BOTTLENECK ###    
         x = Conv2DTranspose(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'sigmoid', padding = 'same')(x)
     
         autoencoder = Model(input_image, x)
@@ -79,7 +82,7 @@ class Autoencoder:
                 self.model.test_on_batch(x_batch,x_batch)
                 
 
-    def train_generator(self, dataset, epochs, batch_size, val_split):
+    def train_on_generator(self, dataset, epochs, batch_size, split_frac):
         """
         Train by the use of fit_generator(). 
         Uses Dataloader.generate_batches()
@@ -91,18 +94,21 @@ class Autoencoder:
         
         assert(batch_size % ds.IMAGES_PER_TIMESTAMP == 0)
                 
-        batches_per_epoch = len(ds.timestamp_list)//(batch_size//ds.IMAGES_PER_TIMESTAMP) ## use len(ds.timestamp_list) instead of ds. size
-        train_batches = int((1-val_split)*batches_per_epoch)
-        val_batches = batches_per_epoch-train_batches
+        batches_per_epoch = len(ds.timestamp_list_train)//(batch_size//ds.IMAGES_PER_TIMESTAMP)
+        val_batches = len(ds.timestamp_list_val)//(batch_size//ds.IMAGES_PER_TIMESTAMP)
+        
+        print('Train and val batches per epoch:',batches_per_epoch,val_batches)
         
         #val_loss=0
         
-        callback_list = [EarlyStopping(monitor='train_loss', patience=1), 
-                         ModelCheckpoint('results/model.hdf5', verbose=1, save_best_only=True),
+        callback_list = [#EarlyStopping(monitor='val_loss', patience=1), 
+                         #ModelCheckpoint('results/model.hdf5',monitor='val_loss', verbose=1, save_best_only=True),
                          TensorBoard(log_dir='log/./logs', batch_size=batch_size, write_images=True)]
                         
-        train_gen = ds.generate_batches(batch_size)
-        h = self.model.fit_generator(train_gen, batches_per_epoch, epochs, callbacks = callback_list)  
+        train_gen = ds.generate_batches(ds.timestamp_list_train, batch_size)
+        val_gen = ds.generate_batches(ds.timestamp_list_val, batch_size)
+        
+        h = self.model.fit_generator(train_gen, batches_per_epoch, epochs, callbacks = callback_list, validation_data = val_gen, validation_steps = val_batches)  
         
             
 if __name__ == "__main__":
@@ -116,13 +122,17 @@ if __name__ == "__main__":
     
     # initialize data
     ds = Dataset()
-    ds.read_timestamps_file('timestamps2017-10-22-11-sampled')
+    ds.get_timestamp_list(sampling_period=60*6, randomize=False)
+    print('Length of timestamp_list:',len(ds.timestamp_list))
+    split_frac = (0.8,0.2,0.0)
+    ds.split_data(split_frac)
+
+    #ds.read_timestamps_file('timestamps2017-10-22-11-sampled')
     #ds.get_timestamp_list(randomize=True)
     #ds.size = len(ds.timestamp_list)
     
     # hyperparameters
     epochs = 100
-    batch_size = 12*2
-    val_split = 0.1
-    ae.train_generator(ds, epochs, batch_size, val_split)
+    batch_size = 12
+    ae.train_on_generator(ds, epochs, batch_size, split_frac)
 

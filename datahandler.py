@@ -14,7 +14,7 @@ import itertools
 import pickle
 
 import numpy as np
-#from PIL import Image
+from PIL import Image
 from random import shuffle
 #from collections import Iterable
 
@@ -29,14 +29,14 @@ class Dataset():
     
     def __init__(self):
         self.path = '/nas0/'
-        self.image_shape = (1920,2560,3)
+        #self.image_shape = (1920,2560,3)
         #self.size = 0
         #self.date_list = []
         self.hour_list = [] 
         self.timestamp_list = []
-        self.get_timestamp_list_train = []
-        self.get_timestamp_list_val = []
-        self.get_timestamp_list_test = []
+        self.timestamp_list_train = []
+        self.timestamp_list_val = []
+        self.timestamp_list_test = []
         
     def get_timestamp_list(self, sampling_period = 1, randomize = False): #, t_start, t_end, min_speed=0):
         """
@@ -46,7 +46,7 @@ class Dataset():
         """
         
         #self.date_list = sorted([date for date in os.listdir(self.path) if '201' in date]) # not used
-        self.hour_list = sorted([hour for date in os.listdir(self.path) if '201' in date for hour in os.listdir(self.path+date) if '2017-10-22-11' in hour])
+        self.hour_list = sorted([hour for date in os.listdir(self.path) if '201' in date for hour in os.listdir(self.path+date) if '2017-10-22-13' in hour])
         #self.timestamp_list = sorted([timestamp for date in os.listdir(self.path) if '201' in date for hour in os.listdir(self.path+date) if '201' in hour for timestamp in os.listdir(self.path+date+'/'+hour+'/Cam0/Lens0') if '.jpg' in timestamp])
         print('Lenght of hour_list: '+str(len(self.hour_list)))
                 
@@ -72,9 +72,19 @@ class Dataset():
         if randomize: 
             shuffle(self.timestamp_list)
             
-    def split_data(self,train_frac, val_frac):
+    def split_data(self, split_frac):
+        """
+        Splits the 'timestamp_list' into three lists.
+        The argument 'split_frac' is a tuple on the form (train_frac, val_frac, test_frac).
+        """
         
-        raise NotImplementedError
+        assert(sum(split_frac) == 1.0)
+        size = len(self.timestamp_list)
+                
+        self.timestamp_list_train = self.timestamp_list[0:int(size*split_frac[0])]
+        self.timestamp_list_val = self.timestamp_list[int(size*split_frac[0]):int(size*sum(split_frac[0:2]))]
+        self.timestamp_list_test = self.timestamp_list[int(size*sum(split_frac[0:2])):size]
+        
                 
     def sample_list(self, l, sampling_period):
         return l[0:len(l):sampling_period]
@@ -89,7 +99,8 @@ class Dataset():
         """
         Load a batch of images for the timestamps in 'timestamps'
         The argument 'timestamps' is a list of timestamps defining the batch, most likely one/two timestamp(s).
-        Returns a numpy array of shape (len(timestamps),1920,2560,3) of type np.float32 with range [0,1].
+        Returns a numpy array of shape (len(timestamps),1920,2560,3) of type np.float32 with range [0,1].    print(ds.timestamp_list)
+        
         """
         
         batch = np.empty((self.IMAGES_PER_TIMESTAMP*len(timestamps),)+(self.IMAGE_SHAPE), np.uint8) #use self.image_shape
@@ -104,10 +115,10 @@ class Dataset():
                         
                     batch[i,:] = dl.load_image(timestamp, dl.TYPE_CAMERA,(cam,lens))
                     i+=1
-                          
+                                
         return batch.astype('float32') / 255.
     
-    def generate_batches(self,batch_size): 
+    def generate_batches(self, timestamp_list, batch_size): 
         """
         Returns a Python generator that generates batches of data indefinetily. To be used in Keras fit_generator().
         Works well, but waste the first batch and feed 2nd batch to fit_generator().
@@ -116,9 +127,9 @@ class Dataset():
         
         while 1:
             t = 0
-            for t in range(len(self.timestamp_list)):
+            for t in range(len(timestamp_list)):
                                
-                x_batch = self.load_batch(self.timestamp_list[t:t+numb_of_timestamps_in_batch])
+                x_batch = self.load_batch(timestamp_list[t:t+numb_of_timestamps_in_batch])
     
                 t += numb_of_timestamps_in_batch
                 yield (x_batch, x_batch)
@@ -144,15 +155,44 @@ class Dataset():
     
 if __name__ == "__main__":
     
+    from matplotlib import cm 
+    
     ds = Dataset()
-    ds.get_timestamp_list(sampling_period=60*12)
+    ds.get_timestamp_list(sampling_period=60*6, randomize=False)
     
     #print(len(ds.timestamp_list))
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list, sampling_period=60)
     print(len(ds.timestamp_list))
+    #print(ds.timestamp_list)
+    
+    ds.split_data((0.8,0.1,0.1))
+    
+    
+    
+    #print(ds.timestamp_list)
+    """
+    print(ds.timestamp_list_train)
+    print(len(ds.timestamp_list_val))
+    print(ds.timestamp_list_val)
+    print(len(ds.timestamp_list_test))
+    print(ds.timestamp_list_test)
+    """
+    batch = ds.generate_batches(ds.timestamp_list, 12)
+    
+    #arr=next(batch)[0][7,:]     
+    #arr=next(batch)[0][7,:]     
+    Image.fromarray(np.uint8(next(batch)[0][7,:]*255),'RGB').show()
+    Image.fromarray(np.uint8(next(batch)[0][7,:]*255),'RGB').show()
+    #arr=next(batch)[0][1,:]     
+    
+    #Image.fromarray(np.uint8(arr*255),'RGB').show()
+    
 
 
-    ds.write_timestamps_file('timestamps2017-10-22-11-sampled')
+
+    
+
+    #ds.write_timestamps_file('timestamps2017-10-22-11-sampled')
     
     """
     
@@ -166,5 +206,4 @@ if __name__ == "__main__":
     #Image.fromarray(im).show()
     ### --------------- ###
         
-    """ 
-        
+    """
