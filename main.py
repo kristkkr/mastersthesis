@@ -9,7 +9,6 @@ Created on Tue Feb 20 11:18:32 2018
 from datahandler import Dataset
 from autoencoder import Autoencoder
 
-#ds = Dataset()
 
 
 """

@@ -4,9 +4,12 @@
 Created on Thu Feb  8 15:40:09 2018
 
 @author: kristoffer
+
+STATUS:
+    leaky relu does not import. prelu works
 """
 
-from keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose
+from keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose, PReLU
 from keras.models import Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 
@@ -31,9 +34,10 @@ class Autoencoder:
         
         filters = [4,8,16,32,64,128,256,512]
         
-        input_image = Input(shape=self.input_shape)
+        input_image = Input(shape=self.input_shape) # change to ds.IMAGE_SHAPE?
         
-        x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(input_image)
+        x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = PReLU(), padding = 'same')(input_image)
+        #x = LeakyReLu(alpha=0.1)(x)
         x = BatchNormalization()(x)
         x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
@@ -88,7 +92,6 @@ class Autoencoder:
         Uses Dataloader.generate_batches()
         Allows for callbacks.
         
-        Status: needs validation
         """        
         ds = dataset
         
@@ -125,7 +128,7 @@ if __name__ == "__main__":
     ds.get_timestamp_list(sampling_period=60*6, randomize=False)
     print('Length of timestamp_list:',len(ds.timestamp_list))
     split_frac = (0.8,0.2,0.0)
-    ds.split_data(split_frac)
+    ds.split_list(split_frac)
 
     #ds.read_timestamps_file('timestamps2017-10-22-11-sampled')
     #ds.get_timestamp_list(randomize=True)
