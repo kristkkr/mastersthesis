@@ -24,16 +24,17 @@ sys.path.insert(0,'/home/kristoffer/Documents/sensorfusion/polarlys')
 from dataloader import DataLoader
 
 class Dataset():
-    IMAGES_PER_TIMESTAMP = 12
-    NUMB_OF_CAMERAS = 4
-    NUMB_OF_LENSES = 3
+    #NUMB_OF_CAMERAS = 4
+    #NUMB_OF_LENSES = 3
     IMAGE_SHAPE = (1920,2560,3)
     IMAGE_EXTENSION = '.jpg'
     
-    def __init__(self):
+    def __init__(self, cams_lenses):
         self.path = '/nas0/'
-        #self.image_shape = (1920,2560,3)
         #self.size = 0
+        #self.batch_size = 12
+        self.cams_lenses = cams_lenses
+        self.images_per_timestamp = len(cams_lenses)
         self.sampling_interval = 1
         self.date_list = []
         self.hour_list = [] 
@@ -143,44 +144,49 @@ class Dataset():
     def flatten_list(self, l):
         return list(itertools.chain(*l))
     
+    def get_data_dict(self, timestamp_list, cams_lenses):
+        """
+        Returns a dictionary containing timestamp_list as keys and images as values.
+        """
+        pass
     
     def load_batch(self, timestamps):
         """
-        Load a batch of images for the timestamps in 'timestamps'
-        The argument 'timestamps' is a list of timestamps defining the batch, most likely one/two timestamp(s).
-        Returns a numpy array of shape (len(timestamps),1920,2560,3) of type np.float32 with range [0,1].    print(ds.timestamp_list)
+        Load a batch of images.
+        The argument 'timestamps' is a list of timestamps to be included in the batch.
+        The argument 'cam_lenses' is a list of tuples (cam,lens).
+        Returns a numpy array of shape (batch_size,1920,2560,3) of type np.float32 with range [0,1].    print(ds.timestamp_list)
         
         """
-        
-        batch = np.empty((self.IMAGES_PER_TIMESTAMP*len(timestamps),)+(self.IMAGE_SHAPE), np.uint8) #use self.image_shape
+        batch_size = len(timestamps)*self.images_per_timestamp
+        batch = np.empty((batch_size,)+(self.IMAGE_SHAPE), np.uint8) 
         
         dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
         
         i = 0
         for timestamp in timestamps:
-            for cam in range(self.NUMB_OF_CAMERAS):
-                for lens in range(self.NUMB_OF_LENSES):
-                        
-                    batch[i,:] = dl.load_image(timestamp, dl.TYPE_CAMERA,(cam,lens))
-                    i+=1
-                                
+            for cam_lens in self.cams_lenses: 
+                batch[i,:] = dl.load_image(timestamp, dl.TYPE_CAMERA,cam_lens)
+                i+=1
+                            
         return batch.astype('float32') / 255.
     
     
     def generate_batches(self, timestamp_list, batch_size): 
         """
         Returns a Python generator that generates batches of data indefinetily. To be used in Keras fit_generator().
-        Works well, but waste the first batch and feed 2nd batch to fit_generator().
-        """
-        numb_of_timestamps_in_batch = batch_size//self.IMAGES_PER_TIMESTAMP
+        Works well, but waste the first batch and feed 2nd batch to fit_generator(). STILL THE CASE? 
         
+        """
+        numb_of_timestamps_in_batch = batch_size//self.images_per_timestamp
+        #print(numb_of_timestamps_in_batch)
         while 1:
             t = 0
-            for t in range(len(timestamp_list)):
-                               
+            for t in range(0,len(timestamp_list), numb_of_timestamps_in_batch):
+                #print(t)
                 x_batch = self.load_batch(timestamp_list[t:t+numb_of_timestamps_in_batch])
     
-                t += numb_of_timestamps_in_batch
+                #t += numb_of_timestamps_in_batch
                 yield (x_batch, x_batch)
     
         
@@ -189,7 +195,7 @@ class Dataset():
             pickle.dump(self.timestamp_list,fp)
         with open(filename+'_about.txt', 'w') as text:
             print('Metadata\nNumber of timestamps in timestamp_list: {}'.format(len(self.timestamp_list)), file=text)
-        print("Timestamps and meta written to file")
+        print('Timestamps and meta written to file')
             
         
     def read_timestamps_file(self, filename):
@@ -201,18 +207,26 @@ class Dataset():
 if __name__ == "__main__":
     
     
-    ds = Dataset()
+    ### TESTS ###
+    cams_lenses = [(1,1), (3,1)]
+    ds = Dataset(cams_lenses)
     ds.read_timestamps_file('datasets/all/interval_60sec/timestamps')
-   
+    #ds.images_per_timestamp = len(ds.cams_lenses)
+    batch = ds.load_batch(ds.timestamp_list[:6])
+    print(batch.shape)
     #ds.read_metadata(ds.timestamp_list[0])
     
-    
+    """
+    ### CREATE NEW DATASET ###
+    ds = Dataset()
+    ds.read_timestamps_file('datasets/all/interval_30min/timestamps')
     t_start = datetime.datetime(2017,10,23)
     t_end = datetime.datetime(2017,10,24)
     ds.select_subset(t_start, t_end)
+    #ds.write_timestamps_file('datasets/dates/2017-10-23:24/interval_30min/timestamps')
     
-    ds.select_subset(targets_ais=0)
-
+    #ds.select_subset(targets_ais=0)
+    """
     
     """
     

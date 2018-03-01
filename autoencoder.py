@@ -95,6 +95,8 @@ class Autoencoder:
         """        
         ds = dataset
         
+        ds.IMAGES_PER_TIMESTAMP = ds.images_per_timestamp # CHANGE/REMOVE. DEFINE IN DATASET CLASS INSTEAD.
+        
         assert(batch_size % ds.IMAGES_PER_TIMESTAMP == 0)
                 
         batches_per_epoch = len(ds.timestamp_list_train)//(batch_size//ds.IMAGES_PER_TIMESTAMP)
@@ -107,11 +109,15 @@ class Autoencoder:
         callback_list = [#EarlyStopping(monitor='val_loss', patience=1), 
                          #ModelCheckpoint('results/model.hdf5',monitor='val_loss', verbose=1, save_best_only=True),
                          TensorBoard(log_dir='log/./logs', batch_size=batch_size, write_images=True)]
-                        
-        train_gen = ds.generate_batches(ds.timestamp_list_train, batch_size)
-        val_gen = ds.generate_batches(ds.timestamp_list_val, batch_size)
         
-        h = self.model.fit_generator(train_gen, batches_per_epoch, epochs, callbacks = callback_list, validation_data = val_gen, validation_steps = val_batches)  
+        
+           
+        h = self.model.fit_generator(generator = ds.generate_batches(ds.timestamp_list_train, batch_size), 
+                                     steps_per_epoch = batches_per_epoch, 
+                                     epochs = epochs, 
+                                     callbacks = callback_list, 
+                                     validation_data = ds.generate_batches(ds.timestamp_list_val, batch_size), 
+                                     validation_steps = val_batches)  
         
             
 if __name__ == "__main__":
@@ -122,18 +128,22 @@ if __name__ == "__main__":
     ae = Autoencoder()
     ae.create_autoencoder()
     ae.model.summary()
-    
+    """ 
     # initialize data
     ds = Dataset()
     ds.get_timestamp_list(sampling_period=60*6, randomize=False)
     print('Length of timestamp_list:',len(ds.timestamp_list))
     split_frac = (0.8,0.2,0.0)
     ds.split_list(split_frac)
-
-    #ds.read_timestamps_file('timestamps2017-10-22-11-sampled')
+    """
+    cams_lenses = [(1,1),(3,1)]
+    ds = Dataset(cams_lenses)
+    ds.read_timestamps_file('datasets/dates/2017-10-23:24/interval_30min/timestamps')
+    split_frac = (0.8,0.2,0.0)
+    ds.split_list(split_frac)
     #ds.get_timestamp_list(randomize=True)
     #ds.size = len(ds.timestamp_list)
-    
+        
     # hyperparameters
     epochs = 100
     batch_size = 12
