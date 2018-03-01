@@ -10,38 +10,60 @@ STATUS:
 """
 
 from keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose, PReLU
-from keras.models import Model
+from keras.models import Model, load_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
+
+from figures import create_simple_reconstruction_plot
 
 
 class Autoencoder:
     def __init__(self):
         self.input_shape = (1920,2560,3)
-        self.model = []
+        self.model = None
+        self.path_results = '/home/kristoffer/Documents/mastersthesis/results/'
         
-       
+        
     def create_autoencoder(self):
-        """
-        Creates the autoencoder.
-        Could be called in __init__ ?
-        """
-
         # conv layer parameters
-        conv_kernel_size1 = 4
+        conv_kernel_size1 = 3
         conv_strides1 = 2
-        #conv_kernel_size2 = 4
-        #conv_strides2 = (3,4)
+        conv_kernel_size1 = 5
+        conv_strides2 = (3,2)
         
         filters = [4,8,16,32,64,128,256,512]
         
         input_image = Input(shape=self.input_shape) # change to ds.IMAGE_SHAPE?
         
-        x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = PReLU(), padding = 'same')(input_image)
+        x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(input_image)
         #x = LeakyReLu(alpha=0.1)(x)
         x = BatchNormalization()(x)
         x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
+        x = Conv2D(filters=filters[2], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        x = Conv2D(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)   
+        x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)           
+        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)   
+        x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)  
+        x = Conv2D(filters=filters[7], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)   
         ### BOTTLENECK ###    
+        x = Conv2DTranspose(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        x = Conv2DTranspose(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)        
         x = Conv2DTranspose(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'sigmoid', padding = 'same')(x)
@@ -95,19 +117,17 @@ class Autoencoder:
         """        
         ds = dataset
         
-        ds.IMAGES_PER_TIMESTAMP = ds.images_per_timestamp # CHANGE/REMOVE. DEFINE IN DATASET CLASS INSTEAD.
-        
-        assert(batch_size % ds.IMAGES_PER_TIMESTAMP == 0)
+        assert(batch_size % ds.images_per_timestamp == 0)
                 
-        batches_per_epoch = len(ds.timestamp_list_train)//(batch_size//ds.IMAGES_PER_TIMESTAMP)
-        val_batches = len(ds.timestamp_list_val)//(batch_size//ds.IMAGES_PER_TIMESTAMP)
+        batches_per_epoch = len(ds.timestamp_list_train)//(batch_size//ds.images_per_timestamp)
+        val_batches = len(ds.timestamp_list_val)//(batch_size//ds.images_per_timestamp)
         
         print('Train and val batches per epoch:',batches_per_epoch,val_batches)
         
         #val_loss=0
         
-        callback_list = [#EarlyStopping(monitor='val_loss', patience=1), 
-                         #ModelCheckpoint('results/model.hdf5',monitor='val_loss', verbose=1, save_best_only=True),
+        callback_list = [EarlyStopping(monitor='val_loss', patience=10), 
+                         ModelCheckpoint(self.path_results+'model.hdf5',monitor='val_loss', verbose=1, save_best_only=False),
                          TensorBoard(log_dir='log/./logs', batch_size=batch_size, write_images=True)]
         
         
@@ -118,6 +138,18 @@ class Autoencoder:
                                      callbacks = callback_list, 
                                      validation_data = ds.generate_batches(ds.timestamp_list_val, batch_size), 
                                      validation_steps = val_batches)  
+        
+    def predict(self, dataset, batch_size, steps): # CHANGE WHAT DATA IT PREDICTS ON
+        
+        ds = dataset
+        
+        reconstructions = self.model.predict_generator(generator = ds.generate_batches(ds.timestamp_list_train, batch_size),
+                                                       steps = steps)
+        plot = create_simple_reconstruction_plot(reconstructions, reconstructions, batch_size)
+        
+        plot.savefig(self.path_results+'output'+'.jpg')
+        print('Plot saved')
+        
         
             
 if __name__ == "__main__":
@@ -136,16 +168,20 @@ if __name__ == "__main__":
     split_frac = (0.8,0.2,0.0)
     ds.split_list(split_frac)
     """
-    cams_lenses = [(1,1),(3,1)]
-    ds = Dataset(cams_lenses)
-    ds.read_timestamps_file('datasets/dates/2017-10-23:24/interval_30min/timestamps')
+    
+    ds = Dataset(cams_lenses = [(1,1),(3,1)])
+    ds.read_timestamps_file('datasets/all/interval_10sec/timestamps')
     split_frac = (0.8,0.2,0.0)
-    ds.split_list(split_frac)
-    #ds.get_timestamp_list(randomize=True)
-    #ds.size = len(ds.timestamp_list)
-        
+    ds.split_list(split_frac, shuffle_order=True)
     # hyperparameters
     epochs = 100
-    batch_size = 12
+    batch_size = 8
+    
+    
     ae.train_on_generator(ds, epochs, batch_size, split_frac)
+    
+    #ae.predict(ds, batch_size, steps=1)
+    #ae.model = load_model(ae.path_results+'model.hdf5')
+    
+    
 

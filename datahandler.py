@@ -179,14 +179,12 @@ class Dataset():
         
         """
         numb_of_timestamps_in_batch = batch_size//self.images_per_timestamp
-        #print(numb_of_timestamps_in_batch)
+        
         while 1:
             t = 0
             for t in range(0,len(timestamp_list), numb_of_timestamps_in_batch):
-                #print(t)
                 x_batch = self.load_batch(timestamp_list[t:t+numb_of_timestamps_in_batch])
     
-                #t += numb_of_timestamps_in_batch
                 yield (x_batch, x_batch)
     
         
@@ -195,7 +193,7 @@ class Dataset():
             pickle.dump(self.timestamp_list,fp)
         with open(filename+'_about.txt', 'w') as text:
             print('Metadata\nNumber of timestamps in timestamp_list: {}'.format(len(self.timestamp_list)), file=text)
-        print('Timestamps and meta written to file')
+        print('Timestamps and meta written to file. Length: '+str(len(self.timestamp_list)))
             
         
     def read_timestamps_file(self, filename):
@@ -206,7 +204,7 @@ class Dataset():
     
 if __name__ == "__main__":
     
-    
+    """
     ### TESTS ###
     cams_lenses = [(1,1), (3,1)]
     ds = Dataset(cams_lenses)
@@ -216,7 +214,8 @@ if __name__ == "__main__":
     print(batch.shape)
     #ds.read_metadata(ds.timestamp_list[0])
     
-    """
+    
+    
     ### CREATE NEW DATASET ###
     ds = Dataset()
     ds.read_timestamps_file('datasets/all/interval_30min/timestamps')
@@ -228,16 +227,17 @@ if __name__ == "__main__":
     #ds.select_subset(targets_ais=0)
     """
     
-    """
     
-    ds = Dataset()
-    ds.sampling_interval = 60*30
+    
+    ds = Dataset([(1,1)])
+    ds.sampling_interval = 10
     ds.read_timestamps_file('datasets/all/interval_1sec/timestamps')
     ds.timestamp_list = ds.sample_list(ds.timestamp_list, ds.sampling_interval)
-    ds.write_timestamps_file('datasets/all/interval_30min/timestamps')
+    ds.write_timestamps_file('datasets/all/interval_10sec/timestamps')
+    
     """
     #print(ds.timestamp_list)
-    """
+    
     print(ds.timestamp_list_train)
     print(len(ds.timestamp_list_val))
     print(ds.timestamp_list_val)
