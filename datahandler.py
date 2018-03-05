@@ -24,8 +24,8 @@ sys.path.insert(0,'/home/kristoffer/Documents/sensorfusion/polarlys')
 from dataloader import DataLoader
 
 class Dataset():
-    #NUMB_OF_CAMERAS = 4
-    #NUMB_OF_LENSES = 3
+    NUMB_OF_CAMERAS = 4
+    NUMB_OF_LENSES = 3
     IMAGE_SHAPE = (1920,2560,3)
     IMAGE_EXTENSION = '.jpg'
     
@@ -33,8 +33,6 @@ class Dataset():
         self.path = '/nas0/'
         #self.size = 0
         #self.batch_size = 12
-        self.cams_lenses = cams_lenses
-        self.images_per_timestamp = len(cams_lenses)
         self.sampling_interval = 1
         self.date_list = []
         self.hour_list = [] 
@@ -43,6 +41,13 @@ class Dataset():
         self.timestamp_list_train = []
         self.timestamp_list_val = []
         self.timestamp_list_test = []
+        if cams_lenses == 'all':
+            self.cams_lenses = [(i,j) for i in range(self.NUMB_OF_CAMERAS) for j in range(self.NUMB_OF_LENSES)]
+            print('All cameras and lenses included in dataset')
+        else: 
+            self.cams_lenses = cams_lenses
+            print('Selection of cameras and lenses:', self.cams_lenses)
+        self.images_per_timestamp = len(self.cams_lenses)        
         
     def get_timestamp_list(self, t_start, t_end, sampling_interval):
         """
@@ -150,7 +155,7 @@ class Dataset():
         """
         pass
     
-    def load_batch(self, timestamps):
+    def load_batch(self, timestamps): # batch_size added, could be removed again?
         """
         Load a batch of images.
         The argument 'timestamps' is a list of timestamps to be included in the batch.
@@ -166,6 +171,7 @@ class Dataset():
         i = 0
         for timestamp in timestamps:
             for cam_lens in self.cams_lenses: 
+                
                 batch[i,:] = dl.load_image(timestamp, dl.TYPE_CAMERA,cam_lens)
                 i+=1
                             
@@ -179,11 +185,11 @@ class Dataset():
         
         """
         numb_of_timestamps_in_batch = batch_size//self.images_per_timestamp
-        
+        print(self.images_per_timestamp)
         while 1:
             t = 0
             for t in range(0,len(timestamp_list), numb_of_timestamps_in_batch):
-                x_batch = self.load_batch(timestamp_list[t:t+numb_of_timestamps_in_batch])
+                x_batch = self.load_batch(timestamp_list[t:t+numb_of_timestamps_in_batch]) # batch_size added, could be removed again?
     
                 yield (x_batch, x_batch)
     
@@ -204,18 +210,19 @@ class Dataset():
     
 if __name__ == "__main__":
     
-    """
+    
     ### TESTS ###
     cams_lenses = [(1,1), (3,1)]
-    ds = Dataset(cams_lenses)
-    ds.read_timestamps_file('datasets/all/interval_60sec/timestamps')
+    ds = Dataset('all')
+    print(ds.cams_lenses)
+    #ds.read_timestamps_file('datasets/all/interval_60sec/timestamps')
     #ds.images_per_timestamp = len(ds.cams_lenses)
-    batch = ds.load_batch(ds.timestamp_list[:6])
-    print(batch.shape)
+    #batch = ds.load_batch(ds.timestamp_list[:6])
+    #print(batch.shape)
     #ds.read_metadata(ds.timestamp_list[0])
     
     
-    
+    """
     ### CREATE NEW DATASET ###
     ds = Dataset()
     ds.read_timestamps_file('datasets/all/interval_30min/timestamps')
@@ -225,16 +232,17 @@ if __name__ == "__main__":
     #ds.write_timestamps_file('datasets/dates/2017-10-23:24/interval_30min/timestamps')
     
     #ds.select_subset(targets_ais=0)
-    """
     
     
     
+    ### CREATE NEW DATASET 2 ###
+
     ds = Dataset([(1,1)])
     ds.sampling_interval = 10
     ds.read_timestamps_file('datasets/all/interval_1sec/timestamps')
     ds.timestamp_list = ds.sample_list(ds.timestamp_list, ds.sampling_interval)
     ds.write_timestamps_file('datasets/all/interval_10sec/timestamps')
-    
+    """
     """
     #print(ds.timestamp_list)
     

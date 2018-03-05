@@ -6,8 +6,9 @@ Created on Thu Feb  8 15:40:09 2018
 @author: kristoffer
 
 STATUS:
-    leaky relu does not import. prelu works
+    leaky relu does not import. 
 """
+import numpy as np
 
 from keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose, PReLU
 from keras.models import Model, load_model
@@ -138,17 +139,34 @@ class Autoencoder:
                                      callbacks = callback_list, 
                                      validation_data = ds.generate_batches(ds.timestamp_list_val, batch_size), 
                                      validation_steps = val_batches)  
-        
-    def predict(self, dataset, batch_size, steps): # CHANGE WHAT DATA IT PREDICTS ON
+    
+    def reconstruct(self, dataset, images_per_figure, steps):
         
         ds = dataset
         
-        reconstructions = self.model.predict_generator(generator = ds.generate_batches(ds.timestamp_list_train, batch_size),
-                                                       steps = steps)
-        plot = create_simple_reconstruction_plot(reconstructions, reconstructions, batch_size)
+        generator = ds.generate_batches(ds.timestamp_list_val, images_per_figure)
+        #original,_ = next(generator)
         
-        plot.savefig(self.path_results+'output'+'.jpg')
-        print('Plot saved')
+        
+        originals = np.empty((steps*images_per_figure,)+ds.IMAGE_SHAPE, np.float32)
+        reconstructions = originals
+        
+        for step in range(steps):
+            originals[step*images_per_figure:(step+1)*images_per_figure,:,:,:], _ = next(generator)
+            reconstructions[step*images_per_figure:(step+1)*images_per_figure,:,:,:] = self.model.predict_on_batch(originals[step*images_per_figure:(step+1)*images_per_figure,:,:,:])
+        """
+        reconstructions = self.model.predict_generator(generator = ds.generate_batches(ds.timestamp_list_val, images_per_figure),
+                                                       steps = steps,
+                                                       verbose=1)
+        """
+        #originals = originals*255.0 #, int(reconstructions*255)
+        
+        n_images,_,_,_ = originals.shape
+        n_fig = n_images//images_per_figure
+        for i in range(n_fig):
+            plot = create_simple_reconstruction_plot(originals[i*images_per_figure:(i+1)*images_per_figure,:,:,:], reconstructions[i*images_per_figure:(i+1)*images_per_figure,:,:,:], images_per_figure)
+            plot.savefig(self.path_results+'output'+str(i)+'.jpg')
+        print('Plots saved')
         
         
             
@@ -158,8 +176,8 @@ if __name__ == "__main__":
 
     # initialize model
     ae = Autoencoder()
-    ae.create_autoencoder()
-    ae.model.summary()
+    #ae.create_autoencoder()
+    #ae.model.summary()
     """ 
     # initialize data
     ds = Dataset()
@@ -168,9 +186,9 @@ if __name__ == "__main__":
     split_frac = (0.8,0.2,0.0)
     ds.split_list(split_frac)
     """
-    
-    ds = Dataset(cams_lenses = [(1,1),(3,1)])
-    ds.read_timestamps_file('datasets/all/interval_10sec/timestamps')
+    #[(0,1), (0,2), (1,1), (2,1), (3,1)]
+    ds = Dataset(cams_lenses = 'all')
+    ds.read_timestamps_file('datasets/all/interval_60sec/timestamps')
     split_frac = (0.8,0.2,0.0)
     ds.split_list(split_frac, shuffle_order=True)
     # hyperparameters
@@ -178,10 +196,11 @@ if __name__ == "__main__":
     batch_size = 8
     
     
-    ae.train_on_generator(ds, epochs, batch_size, split_frac)
+    #ae.train_on_generator(ds, epochs, batch_size, split_frac)
     
-    #ae.predict(ds, batch_size, steps=1)
-    #ae.model = load_model(ae.path_results+'model.hdf5')
+    ae.model = load_model(ae.path_results+'model.hdf5')
+    ae.reconstruct(ds, images_per_figure=12, steps=1)
+    
     
     
 
