@@ -34,7 +34,7 @@ def save_to_directory(autoencoder, loss_history, epoch, batch, train_val_ratio, 
     # THIS FUNCTION DOES NOT BELONG IN FIGURES
     
     epoch_str = insert_leading_zeros(epoch,2)
-    batch_str = insert_leading_zeros(batch,4)
+    batch_str = insert_leading_zeros(batch,6)
 
     if batch%loss_freq == 0:
         np.save(autoencoder.path_results+'loss_history_train', loss_history.train_loss)
@@ -63,8 +63,8 @@ def save_plot_loss_history(path_results, loss_history, train_val_ratio, n):
     fig = plt.figure()
     ax = plt.gca()
     plt.clf()
-    plt.plot(loss_history.train_loss[:-(train_val_ratio-1)], label='Training', marker='o')
-    plt.plot(range(0,len(loss_history.train_loss),train_val_ratio), loss_history.val_loss, label='Validation', marker='o')
+    plt.plot(loss_history.train_loss[:-(train_val_ratio-1)], label='Training')
+    plt.plot(range(0,len(loss_history.train_loss),train_val_ratio), loss_history.val_loss, label='Validation')
     #plt.xticks([x*1830 for x in range(21)],range(21))
     plt.legend()
     
@@ -76,7 +76,7 @@ def save_plot_loss_history(path_results, loss_history, train_val_ratio, n):
     plt.xlabel('Time [batch]')
     plt.ylabel('Loss [MAE]')
     plt.savefig(path_results+'loss_history_avg_n'+str(n)+'.eps', format='eps')
-
+    plt.close()
         
 def save_reconstructions_during_training(autoencoder, path_results, val_batch, image_shape, batch_size, epoch_str, batch_str, loss_history):
 

@@ -102,7 +102,9 @@ class Autoencoder:
         loss_history.on_train_begin()
         #loss_train, loss_val = [],[]
         
-        print('Batches per epoch: '+str(batches_per_epoch))
+        print('Total, train and val batches per epoch:', batches_per_epoch, train_batches, val_batches)
+        print('Batch size:', batch_size)
+
         for epoch in range(epochs):
             print('Epoch '+str(epoch+1)+'/'+str(epochs))
             val_batch = 0
@@ -129,7 +131,7 @@ class Autoencoder:
                     
                     val_batch += 1
                     
-                    save_to_directory(self, loss_history, epoch, train_batch, train_val_ratio, model_freq=1, loss_freq=1, n_move_avg=1)
+                    save_to_directory(self, loss_history, epoch, (train_batch+1), train_val_ratio, model_freq=train_val_ratio*10, loss_freq=train_val_ratio, n_move_avg=1)
                     #save_plot_loss_history(self.path_results, loss_history, train_val_ratio, n=1)
                 
 
