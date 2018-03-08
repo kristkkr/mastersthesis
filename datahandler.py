@@ -185,7 +185,7 @@ class Dataset():
         
         """
         numb_of_timestamps_in_batch = batch_size//self.images_per_timestamp
-        print(self.images_per_timestamp)
+        #print(self.images_per_timestamp)
         while 1:
             t = 0
             for t in range(0,len(timestamp_list), numb_of_timestamps_in_batch):

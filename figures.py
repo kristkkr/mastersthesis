@@ -4,11 +4,9 @@
 Created on Fri Dec  1 09:08:28 2017
 
 @author: kristkkr
-TO DO:
-    legends in loss_history
-    filter for binary detection 
-"""
 
+"""
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -16,7 +14,7 @@ from PIL import Image
 from skimage import filters, morphology
 from keras.preprocessing.image import ImageDataGenerator
 
-
+"""
 def test(autoencoder, path_test, path_results, batch_size, n_batches, shuffle=False, image_shape=(720,1280,3)):
     target_size = image_shape[:2]
 
@@ -31,38 +29,43 @@ def test(autoencoder, path_test, path_results, batch_size, n_batches, shuffle=Fa
         batch +=1
         if batch >= n_batches:
             return 
-
-def save_to_directory(path_results, autoencoder, loss_history, epoch, batch, val_batch, image_shape, val_batch_size, reconstruction_freq, model_freq, loss_freq, n_move_avg):
+"""
+def save_to_directory(autoencoder, loss_history, epoch, batch, train_val_ratio, model_freq, loss_freq, n_move_avg):
+    # THIS FUNCTION DOES NOT BELONG IN FIGURES
+    
     epoch_str = insert_leading_zeros(epoch,2)
     batch_str = insert_leading_zeros(batch,4)
-    
+
     if batch%loss_freq == 0:
-        np.save(path_results+'loss_history_train', loss_history.train_loss)
-        np.save(path_results+'loss_history_val', loss_history.val_loss)
-        save_plot_loss_history(path_results, n_move_avg)
-    if batch%reconstruction_freq == 0:
-        save_reconstructions_during_training(autoencoder, path_results, val_batch, image_shape, val_batch_size, epoch_str, batch_str, loss_history)
+        np.save(autoencoder.path_results+'loss_history_train', loss_history.train_loss)
+        np.save(autoencoder.path_results+'loss_history_val', loss_history.val_loss)
+        try:
+            save_plot_loss_history(autoencoder.path_results, loss_history, train_val_ratio, n_move_avg)
+        except: 
+            print('Loss history plot not saved')
+    #if batch%reconstruction_freq == 0:
+        #save_reconstructions_during_training(autoencoder.model, path_results, val_batch, image_shape, val_batch_size, epoch_str, batch_str, loss_history)
     if batch%model_freq == 0:
-        autoencoder.save(path_results+'epoch'+epoch_str+'_batch'+batch_str+'_valloss'+str(round(loss_history.val_loss[-1],4))+'.h5')
+        autoencoder.model.save(autoencoder.path_results+'epoch'+epoch_str+'_batch'+batch_str+'_valloss'+str(round(loss_history.val_loss[-1],4))+'.hdf5')
         print('Model saved')
 
 
-def save_plot_loss_history(path_results, n):
+def save_plot_loss_history(path_results, loss_history, train_val_ratio, n):
     # n: in moving average
         
-    train_loss = np.load(path_results+'loss_history_train.npy')
-    val_loss = np.load(path_results+'loss_history_val.npy')
+    #train_loss = np.load(path_results+'loss_history_train.npy')
+    #val_loss = np.load(path_results+'loss_history_val.npy')
     
     # moving average
-    train_loss_avg = moving_average(train_loss, n=n)
-    val_loss_avg = moving_average(val_loss, n=n)
+    #train_loss_avg = moving_average(loss_history.train_loss, n=n)
+    #val_loss_avg = moving_average(loss_history.val_loss, n=n)
     
     fig = plt.figure()
     ax = plt.gca()
     plt.clf()
-    plt.plot(train_loss_avg, label='Training')
-    plt.plot(val_loss_avg, label='Validation')
-    plt.xticks([x*1830 for x in range(21)],range(21))
+    plt.plot(loss_history.train_loss[:-(train_val_ratio-1)], label='Training', marker='o')
+    plt.plot(range(0,len(loss_history.train_loss),train_val_ratio), loss_history.val_loss, label='Validation', marker='o')
+    #plt.xticks([x*1830 for x in range(21)],range(21))
     plt.legend()
     
     #handles, labels = ax.get_legend_handles_labels()
@@ -70,7 +73,7 @@ def save_plot_loss_history(path_results, n):
 
     plt.gca().yaxis.grid(True)
     plt.title('Loss during training')
-    plt.xlabel('Time [epoch]')
+    plt.xlabel('Time [batch]')
     plt.ylabel('Loss [MAE]')
     plt.savefig(path_results+'loss_history_avg_n'+str(n)+'.eps', format='eps')
 
