@@ -10,29 +10,29 @@ STATUS:
 """
 import numpy as np
 
-from keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose, PReLU
-from keras.models import Model, load_model
+from keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose
+from keras.models import Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, Callback
 
-from figures import create_simple_reconstruction_plot, save_plot_loss_history, save_to_directory
+from figures import create_reconstruction_plot, save_to_directory
 
 
 class Autoencoder:
-    def __init__(self, path_results):
+    def __init__(self, dataset, path_results):
         self.input_shape = (1920,2560,3)
         self.model = None
         self.path_results = path_results
-        
-        
+        self.dataset = dataset
+            
     def create_autoencoder(self):
         # conv layer parameters
-        conv_kernel_size1 = 3
+        #conv_kernel_size1 = 3
         conv_strides1 = 2
         conv_kernel_size1 = 5
-        conv_strides2 = (3,4)
-        conv_strides3 = (4,4)
+        conv_strides2 = (1,2)
+        #conv_strides3 = (4,4)
         
-        filters = [8,16,32,64,128,256,512]
+        filters = [4,8,16,32,64,128,256,512]
         
         input_image = Input(shape=self.input_shape) # change to ds.IMAGE_SHAPE?
         
@@ -49,17 +49,17 @@ class Autoencoder:
         x = BatchNormalization()(x)           
         x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)   
-        x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
+        x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)  
-        """
+        
         x = Conv2D(filters=filters[7], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)   
         
         ### BOTTLENECK ###    
         x = Conv2DTranspose(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
-        """
-        x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
+        
+        x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
@@ -78,15 +78,12 @@ class Autoencoder:
     
         self.model = autoencoder
         
-    def train(self, dataset, epochs, batch_size): #val_split
+    def train(self, epochs, batch_size): #val_split
         """
-        Train by the use of train_on_batch().
-        Uses Dataset.load_batch()
-        Callbacks are not used.
-        
+        Train by the use of train_on_batch() and Dataset.load_batch()
         """
         
-        ds = dataset
+        ds = self.dataset
         np.save(self.path_results+'data_timestamp_list_train', ds.timestamp_list_train)
         np.save(self.path_results+'data_timestamp_list_val', ds.timestamp_list_val)
         assert(batch_size % ds.images_per_timestamp == 0)
@@ -96,50 +93,54 @@ class Autoencoder:
         val_batches = len(ds.timestamp_list_val)*ds.images_per_timestamp//batch_size
         
         train_val_ratio = train_batches//val_batches
-        #print(train_val_ratio)
         
         loss_history = LossHistory()
         loss_history.on_train_begin()
-        #loss_train, loss_val = [],[]
         
         print('Total, train and val batches per epoch:', batches_per_epoch, train_batches, val_batches)
         print('Batch size:', batch_size)
-
+        failed_batches = []
+        
         for epoch in range(epochs):
             print('Epoch '+str(epoch+1)+'/'+str(epochs))
-            val_batch = 0
+            val_batch = 0 # keeps track of what number of val_batch we're currently at
+            train_timestamp_index = 0 # keeps track of index in timestamp_list_train
+            val_timestamp_index = 0 # keeps track of index in timestamp_list_val
             
             # train
             for train_batch in range(train_batches):
                 print('Training batch '+str(train_batch+1)+'/'+str(train_batches)+'. ', end='')
-                
-                
-                x_batch = ds.load_batch(ds.timestamp_list[train_batch:train_batch+batch_size//ds.images_per_timestamp])
+                x_batch = []
+                try:
+                    x_batch = ds.load_batch(ds.timestamp_list_train[train_timestamp_index:train_timestamp_index+batch_size//ds.images_per_timestamp])
+                except:
+                    failed_batches.append(ds.timestamp_list_train[train_timestamp_index:train_timestamp_index+batch_size//ds.images_per_timestamp])
+                    continue
                 loss = self.model.train_on_batch(x_batch,x_batch)
-                #loss_train.append(loss)
                 loss_history.on_train_batch_end(loss)
                 print('Training loss: '+str(loss))
+                
+                train_timestamp_index += batch_size//ds.images_per_timestamp
+                
                 # validate
                 if (train_batch+1) % train_val_ratio == 0:           
                     print('Validate batch '+str(val_batch+1)+'/'+str(val_batches)+'. ', end='')
                     
-                    x_batch = ds.load_batch(ds.timestamp_list[val_batch:val_batch+batch_size//ds.images_per_timestamp])
+                    x_batch = ds.load_batch(ds.timestamp_list_val[val_timestamp_index:val_timestamp_index+batch_size//ds.images_per_timestamp])
                     loss = self.model.test_on_batch(x_batch,x_batch)
-                    #loss_val.append(loss)
                     loss_history.on_val_batch_end(loss)                    
                     print('Validate loss: '+str(loss))    
                     
                     val_batch += 1
+                    val_timestamp_index += batch_size//ds.images_per_timestamp
                     
-                    save_to_directory(self, loss_history, epoch, (train_batch+1), train_val_ratio, model_freq=train_val_ratio*10, loss_freq=train_val_ratio, n_move_avg=1)
-                    #save_plot_loss_history(self.path_results, loss_history, train_val_ratio, n=1)
+                    save_to_directory(self, loss_history, epoch, (train_batch+1), train_val_ratio, model_freq=train_val_ratio*100, loss_freq=train_val_ratio, n_move_avg=1)
                 
 
     def train_on_generator(self, dataset, epochs, batch_size): #split_frac removed from arguments
         """
         Train by the use of fit_generator(). 
         Allows for keras callbacks.
-        
         """        
         ds = dataset
         
@@ -150,14 +151,11 @@ class Autoencoder:
         
         print('Train and val batches per epoch:',batches_per_epoch,val_batches)
         print('Batch size:', batch_size)
-        #val_loss=0
         
         callback_list = [EarlyStopping(monitor='val_loss', patience=10), 
                          ModelCheckpoint(self.path_results+'model.hdf5',monitor='val_loss', verbose=1, save_best_only=False, period=0.01),
                          TensorBoard(log_dir=self.path_results+'log/./logs', batch_size=batch_size, write_images=True, )]
         
-        
-           
         h = self.model.fit_generator(generator = ds.generate_batches(ds.timestamp_list_train, batch_size), 
                                      steps_per_epoch = batches_per_epoch, 
                                      epochs = epochs, 
@@ -166,33 +164,25 @@ class Autoencoder:
                                      validation_steps = val_batches)  
         
     
-    def reconstruct(self, dataset, images_per_figure, steps):
+    def reconstruct(self, numb_of_timestamps, images_per_figure):
         
-        ds = dataset
+        timestamps = self.dataset.timestamp_list_val[:numb_of_timestamps+1]
         
-        generator = ds.generate_batches(ds.timestamp_list_val, images_per_figure)
-        #original,_ = next(generator)
-        
-        
-        originals = np.empty((steps*images_per_figure,)+ds.IMAGE_SHAPE, np.float32)
-        reconstructions = originals
-        
-        for step in range(steps):
-            originals[step*images_per_figure:(step+1)*images_per_figure,:,:,:], _ = next(generator)
-            reconstructions[step*images_per_figure:(step+1)*images_per_figure,:,:,:] = self.model.predict_on_batch(originals[step*images_per_figure:(step+1)*images_per_figure,:,:,:])
+        i = 0
+        while i < numb_of_timestamps:
+            # x_batch = ds.load_batch(ds.timestamp_list[val_batch:val_batch+batch_size//ds.images_per_timestamp])
+            x_batch = self.dataset.load_batch(timestamps[i:i+images_per_figure//self.dataset.images_per_timestamp])
+            y_batch = self.model.predict_on_batch(x_batch)
+            plot = create_reconstruction_plot(x_batch, y_batch, images_per_figure)
+            plot.savefig(self.path_results+'reconstruction'+str(i+1)+'.jpg')
+            i += images_per_figure//self.dataset.images_per_timestamp
+            print('Plot saved')
+            
+    def test(self, dataset):
         """
-        reconstructions = self.model.predict_generator(generator = ds.generate_batches(ds.timestamp_list_val, images_per_figure),
-                                                       steps = steps,
-                                                       verbose=1)
+        Test the model on test data. Return score.
         """
-        #originals = originals*255.0 #, int(reconstructions*255)
-        
-        n_images,_,_,_ = originals.shape
-        n_fig = n_images//images_per_figure
-        for i in range(n_fig):
-            plot = create_simple_reconstruction_plot(originals[i*images_per_figure:(i+1)*images_per_figure,:,:,:], reconstructions[i*images_per_figure:(i+1)*images_per_figure,:,:,:], images_per_figure)
-            plot.savefig(self.path_results+'output'+str(i)+'.jpg')
-        print('Plots saved')
+        pass
         
 
 class LossHistory(Callback):

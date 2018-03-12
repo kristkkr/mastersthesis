@@ -31,7 +31,7 @@ def test(autoencoder, path_test, path_results, batch_size, n_batches, shuffle=Fa
             return 
 """
 def save_to_directory(autoencoder, loss_history, epoch, batch, train_val_ratio, model_freq, loss_freq, n_move_avg):
-    # THIS FUNCTION DOES NOT BELONG IN FIGURES
+    # THIS FUNCTION DOES NOT BELONG HERE. autoencoder?
     
     epoch_str = insert_leading_zeros(epoch,2)
     batch_str = insert_leading_zeros(batch,6)
@@ -39,10 +39,8 @@ def save_to_directory(autoencoder, loss_history, epoch, batch, train_val_ratio, 
     if batch%loss_freq == 0:
         np.save(autoencoder.path_results+'loss_history_train', loss_history.train_loss)
         np.save(autoencoder.path_results+'loss_history_val', loss_history.val_loss)
-        try:
-            save_plot_loss_history(autoencoder.path_results, loss_history, train_val_ratio, n_move_avg)
-        except: 
-            print('Loss history plot not saved')
+        save_plot_loss_history(autoencoder.path_results, train_val_ratio, n_move_avg)
+
     #if batch%reconstruction_freq == 0:
         #save_reconstructions_during_training(autoencoder.model, path_results, val_batch, image_shape, val_batch_size, epoch_str, batch_str, loss_history)
     if batch%model_freq == 0:
@@ -50,21 +48,22 @@ def save_to_directory(autoencoder, loss_history, epoch, batch, train_val_ratio, 
         print('Model saved')
 
 
-def save_plot_loss_history(path_results, loss_history, train_val_ratio, n):
+def save_plot_loss_history(path_results, train_val_ratio, n):
+    # THIS FUNCTION DOES NOT BELONG HERE. datahandler -> Figures?
     # n: in moving average
         
-    #train_loss = np.load(path_results+'loss_history_train.npy')
-    #val_loss = np.load(path_results+'loss_history_val.npy')
+    train_loss = np.load(path_results+'loss_history_train.npy')
+    val_loss = np.load(path_results+'loss_history_val.npy')
     
     # moving average
-    #train_loss_avg = moving_average(loss_history.train_loss, n=n)
-    #val_loss_avg = moving_average(loss_history.val_loss, n=n)
+    train_loss_avg = moving_average(train_loss, n=n)
+    val_loss_avg = moving_average(val_loss, n=n)
     
     fig = plt.figure()
     ax = plt.gca()
     plt.clf()
-    plt.plot(loss_history.train_loss[:-(train_val_ratio-1)], label='Training')
-    plt.plot(range(0,len(loss_history.train_loss),train_val_ratio), loss_history.val_loss, label='Validation')
+    plt.plot(range(1,len(train_loss_avg)+1),train_loss_avg, label='Training', linewidth=0.5)
+    plt.plot(range(train_val_ratio,(len(val_loss_avg)+1)*train_val_ratio, train_val_ratio), val_loss_avg, label='Validation', linewidth=0.5)
     #plt.xticks([x*1830 for x in range(21)],range(21))
     plt.legend()
     
@@ -79,7 +78,7 @@ def save_plot_loss_history(path_results, loss_history, train_val_ratio, n):
     plt.close()
         
 def save_reconstructions_during_training(autoencoder, path_results, val_batch, image_shape, batch_size, epoch_str, batch_str, loss_history):
-
+    # THIS FUNCTION DOES NOT BELONG HERE. datahandler -> Figures?
     original_imgs = val_batch
 
     reconstructed_imgs = autoencoder.predict_on_batch(original_imgs)
@@ -93,133 +92,13 @@ def save_reconstructions_during_training(autoencoder, path_results, val_batch, i
 
         
 def create_reconstruction_plot(original_imgs, reconstructed_imgs, batch_size):
-    fig_rows = 6
-
-
-    gs = gridspec.GridSpec(fig_rows, batch_size)
-    gs.update(wspace=0.02, hspace=0.02)
-    font_size=12
-    rotation = 90
-    
-    threshold = 55/255.
-    opening_size = 1
-
-    gauss_sigma = 1.5
-    gauss_threshold = 45/255.
-    gauss_opening_size = 1
-
-    scale = 300
-    plot = plt.figure(figsize=(1280*batch_size//scale,720*fig_rows//scale))#figsize=(30, 20)) #(figsize=(width,height))
-
-    for i in range(batch_size):
-
-        # display original
-        ax = plt.subplot(gs[i])
-        plt.imshow(original_imgs[i])
-        #ax = remove_subplot_spines(ax)
-        if i==0: 
-            ax.set_ylabel('Original', rotation=rotation, fontsize=font_size)
-        #else:   
-        plt.yticks([],[])        
-        plt.xticks([],[])
-
-        # display reconstruction
-        ax = plt.subplot(gs[i+batch_size]) #ax = plt.subplot(fig_rows, batch_size, i + 1 + batch_size)
-        plt.imshow(reconstructed_imgs[i])
-        #ax = remove_subplot_spines(ax)
-        if i==0: 
-            ax.set_ylabel('Reconstructed', rotation=rotation, fontsize=font_size)
-        #else:   
-        plt.yticks([],[])
-        plt.xticks([],[]) 
-
-        # reconstruction error in grayscale
-        err0 = np.abs(reconstructed_imgs[i,:,:,0] - original_imgs[i,:,:,0])
-        err1 = np.abs(reconstructed_imgs[i,:,:,1] - original_imgs[i,:,:,1])
-        err2 = np.abs(reconstructed_imgs[i,:,:,2] - original_imgs[i,:,:,2])
-        
-        abs_err_gray = (err0+err1+err2)/3
-        
-        ax = plt.subplot(gs[i+2*batch_size]) #ax = plt.subplot(fig_rows, batch_size, i + 1 + 2*batch_size)
-        plt.imshow(abs_err_gray, cmap='gray')
-        #ax = remove_subplot_spines(ax)
-        if i==0: 
-            ax.set_ylabel('Absolute error', rotation=rotation, fontsize=font_size)
-        #else:   
-        plt.yticks([],[]) 
-        plt.xticks([],[])
-        
-
-        """
-        #### THRESHOLDING + OPENING START
-        binary = abs_err_gray > threshold
-        
-        ax = plt.subplot(gs[i+3*batch_size]) #ax = plt.subplot(fig_rows, batch_size, i + 1 + 3*batch_size)
-        plt.imshow(binary, cmap='gray') 
-        if i==0:
-            ax.set_ylabel('binary diff', rotation=rotation, fontsize=font_size)
-        
-        opened = morphology.opening(binary, morphology.star(a=opening_size)) 
-        ax = plt.subplot(gs[i+4*batch_size]) #ax = plt.subplot(fig_rows, batch_size, i + 1 + 4*batch_size)
-        plt.imshow(opened, cmap='gray')
-        if i==0: 
-            ax.set_ylabel('Opened', rotation=rotation, fontsize=font_size)
-        else:   
-            plt.yticks([],[]) 
-        plt.xticks([],[])
-        
-        #### THRESHOLDING + OPENING END
-        
-        """
-        
-        #### GAUSSIAN+ THRESHOLDING + OPENING START
-        abs_err_gauss = filters.gaussian(abs_err_gray, gauss_sigma)
-
-        #k = 5
-        #kernel_median = np.ones((k,k))
-        #abs_err_median = filters.median(abs_err_gray, selem=kernel_median) #,selem=3) default selem is square 3x3
-
-        binary_gauss = abs_err_gauss > gauss_threshold
-
-        #ax = plt.subplot(gs[i+3*batch_size])
-        #plt.imshow(binary_gauss, cmap='gray')
-        #if i==0: 
-        #    ax.set_ylabel('binary_gauss', rotation=rotation, fontsize=font_size)
-        #else:   
-        #    plt.yticks([],[]) 
-        #plt.xticks([],[])
-        
-        
-        opened_gauss = morphology.opening(binary_gauss, morphology.star(a=gauss_opening_size)) 
-        
-        #ax = plt.subplot(gs[i+4*batch_size]) #ax = plt.subplot(fig_rows, batch_size, i + 1 + 4*batch_size)
-        #plt.imshow(opened_gauss, cmap='gray')
-        
-        #### GAUSSIAN + THRESHOLDING + OPENING END
-        
-        masked = add_mask(original_imgs[i],opened_gauss)
-        ax = plt.subplot(gs[i+3*batch_size])
-        plt.imshow(masked)
-        #ax = remove_subplot_spines(ax)
-        if i==0: 
-            ax.set_ylabel('Object map', rotation=rotation, fontsize=font_size) #\non original'
-        #else:
-        plt.yticks([],[]) 
-        plt.xticks([],[])
-
-        
-    #plt.subplots_adjust(wspace=0,hspace=0)
-    plt.close(plot)
-    return plot
-
-def create_simple_reconstruction_plot(original_imgs, reconstructed_imgs, batch_size):
     fig_rows = 3
 
     gs = gridspec.GridSpec(fig_rows, batch_size)
     gs.update(wspace=0.02, hspace=0.02)
     
-    scale=300
-    plot = plt.figure(figsize=(1280*batch_size//scale,720*fig_rows//scale))#figsize=(30, 20)) #(figsize=(width,height))
+    scale=80
+    plot = plt.figure(figsize=(2560*batch_size//scale,1920*fig_rows//scale))#figsize=(30, 20)) #(figsize=(width,height))
     for i in range(batch_size):
 
         # display original
@@ -244,6 +123,7 @@ def create_simple_reconstruction_plot(original_imgs, reconstructed_imgs, batch_s
         ax.axis('off')
 
     #plt.subplots_adjust(wspace=0.02,hspace=0.02)
+    
     plt.close(plot)
     return plot
 

@@ -16,7 +16,7 @@ import datetime
 import json
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 from random import shuffle
 #from collections import Iterable
 
@@ -31,8 +31,6 @@ class Dataset():
     
     def __init__(self, cams_lenses):
         self.path = '/nas0/'
-        #self.size = 0
-        #self.batch_size = 12
         self.sampling_interval = 1
         self.date_list = []
         self.hour_list = [] 
@@ -159,11 +157,14 @@ class Dataset():
         """
         Load a batch of images.
         The argument 'timestamps' is a list of timestamps to be included in the batch.
-        The argument 'cam_lenses' is a list of tuples (cam,lens).
         Returns a numpy array of shape (batch_size,1920,2560,3) of type np.float32 with range [0,1].    print(ds.timestamp_list)
         
         """
-        batch_size = len(timestamps)*self.images_per_timestamp
+        try:
+            batch_size = len(timestamps)*self.images_per_timestamp
+        except:
+            batch_size = len(timestamps)*self.images_per_timestamp
+            
         batch = np.empty((batch_size,)+(self.IMAGE_SHAPE), np.uint8) 
         
         dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
@@ -193,6 +194,28 @@ class Dataset():
     
                 yield (x_batch, x_batch)
     
+    def mask_image(self, image, grid):
+        #masked_image = np.empty((grid[0]*grid[1], self.IMAGE_SHAPE))
+        
+        polygons = [(i*self.IMAGE_SHAPE[0]//grid[0] ,j*self.IMAGE_SHAPE[1]//grid[1]) for i in range(grid[0]+1) for j in range(grid[1]+1)]
+        #polygons2 = [[(i,j),(i+1,j),(i,j+1),(i+1,j+1)] for i in range(grid[0]) for j in range(grid[1])]
+        
+        #g = np.meshgrid()
+        
+        #l = []
+        #for i in range(grid[0]):
+        #    for j in range(grid[1]):
+            
+        #im = Image.fromarray(image)
+        
+        #for i in range(grid[0]*grid[1]):
+         #   masked_im = ImageDraw.Draw(im).polygon()
+    
+        print(polygons2)
+        
+        pass
+        
+        
         
     def write_timestamps_file(self, filename):
         with open(filename,'wb') as fp:
@@ -207,7 +230,9 @@ class Dataset():
             self.timestamp_list = pickle.load(fp)
             print('Timestamps read from file. Length: '+str(len(self.timestamp_list)))
  
-    
+class Figures():
+    pass
+
 if __name__ == "__main__":
     
     
@@ -252,6 +277,12 @@ if __name__ == "__main__":
     print(len(ds.timestamp_list_test))
     print(ds.timestamp_list_test)
     """
+    path_results = '/home/kristoffer/Documents/mastersthesis/results/ex3/'
+    ds = Dataset('all')
+    ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy')
+    #print(ds.timestamp_list_train[4*5206-1:4*5206+2])
+    ds.mask_image(ds.timestamp_list_train[0], (2,2))
+    
     #batch = ds.generate_batches(ds.timestamp_list, 12)
     
     #arr=next(batch)[0][7,:]     
