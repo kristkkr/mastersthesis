@@ -30,7 +30,7 @@ def test(autoencoder, path_test, path_results, batch_size, n_batches, shuffle=Fa
         if batch >= n_batches:
             return 
 """
-def save_to_directory(autoencoder, loss_history, epoch, batch, train_val_ratio, model_freq, loss_freq, n_move_avg):
+def save_to_directory(autoencoder, loss_history, failed_timestamps, epoch, batch, train_val_ratio, model_freq, loss_freq, n_move_avg):
     # THIS FUNCTION DOES NOT BELONG HERE. autoencoder?
     
     epoch_str = insert_leading_zeros(epoch,2)
@@ -40,6 +40,9 @@ def save_to_directory(autoencoder, loss_history, epoch, batch, train_val_ratio, 
         np.save(autoencoder.path_results+'loss_history_train', loss_history.train_loss)
         np.save(autoencoder.path_results+'loss_history_val', loss_history.val_loss)
         save_plot_loss_history(autoencoder.path_results, train_val_ratio, n_move_avg)
+        
+        with open(autoencoder.path_results+'failed_batches.txt', 'w') as text: # save failed batches
+            print('Timestamps of failed batches:\n{}'.format(failed_timestamps), file=text)
 
     #if batch%reconstruction_freq == 0:
         #save_reconstructions_during_training(autoencoder.model, path_results, val_batch, image_shape, val_batch_size, epoch_str, batch_str, loss_history)
