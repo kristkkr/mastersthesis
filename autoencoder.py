@@ -30,7 +30,7 @@ class Autoencoder:
         conv_strides2 = (3,2)
         conv_strides3 = (1,2)
         
-        filters = [2**n for n in range(2,11)] # [8,16,32,64,128,256,512,1024]
+        filters = [2**n for n in range(3,16)] # [8,16,32,64,128,256,512,1024]
         
         input_image = Input(shape=self.input_shape) # change to ds.IMAGE_SHAPE?
         
@@ -49,18 +49,21 @@ class Autoencoder:
         x = BatchNormalization()(x)   
         x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)  
-        
+        """
         x = Conv2D(filters=filters[7], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)   
         x = Conv2D(filters=filters[8], kernel_size=conv_kernel_size1, strides=conv_strides3, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)     
-        
+        x = Conv2D(filters=filters[15], kernel_size=conv_kernel_size1, strides=conv_strides3, activation = 'relu', padding = 'valid')(x)
+        x = BatchNormalization()(x)          
         ### BOTTLENECK ###    
+        x = Conv2DTranspose(filters=filters[8], kernel_size=conv_kernel_size1, strides=conv_strides3, activation = 'relu', padding = 'valid')(x)
+        x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=filters[7], kernel_size=conv_kernel_size1, strides=conv_strides3, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
-        
+        """
         x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
@@ -140,7 +143,7 @@ class Autoencoder:
                     val_batch += 1
                     val_timestamp_index += batch_size//ds.images_per_timestamp
                     
-                save_to_directory(self, loss_history, failed_timestamps,epoch, (train_batch+1), train_val_ratio, model_freq=1000, loss_freq=train_val_ratio, n_move_avg=1)
+                save_to_directory(self, loss_history, failed_timestamps,epoch, (train_batch+1), train_val_ratio, model_freq=train_batches, loss_freq=train_val_ratio, n_move_avg=1)
                 
 
     def train_on_generator(self, dataset, epochs, batch_size): #split_frac removed from arguments
@@ -170,19 +173,24 @@ class Autoencoder:
                                      validation_steps = val_batches)  
         
     
-    def reconstruct(self, numb_of_timestamps, images_per_figure):
+    def reconstruct(self, data, numb_of_timestamps, images_per_figure):
         
-        timestamps = self.dataset.timestamp_list_val[:numb_of_timestamps+1]
-        
+        if data == 'train':
+            timestamps = self.dataset.timestamp_list_train[:numb_of_timestamps+1]
+        elif data == 'val':
+            timestamps = self.dataset.timestamp_list_val[:numb_of_timestamps+1]
+        else:
+            assert('Invalid data argument')
+            
         i = 0
         while i < numb_of_timestamps:
             # x_batch = ds.load_batch(ds.timestamp_list[val_batch:val_batch+batch_size//ds.images_per_timestamp])
             x_batch = self.dataset.load_batch(timestamps[i:i+images_per_figure//self.dataset.images_per_timestamp])
             y_batch = self.model.predict_on_batch(x_batch)
             plot = create_reconstruction_plot(x_batch, y_batch, images_per_figure)
-            plot.savefig(self.path_results+'reconstruction'+str(i+1)+'.jpg')
+            plot.savefig(self.path_results+'reconstruction-'+data+str(i+1)+'.jpg')
             i += images_per_figure//self.dataset.images_per_timestamp
-            print('Plot saved')
+            print('Reconstruction saved')
             
     def test(self, dataset):
         """

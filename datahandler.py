@@ -105,6 +105,7 @@ class Dataset():
         del ds.timestamp_list
         #print('Timestamp_list now empty')
         
+        dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
         ds.timestamp_list = []
                         
         for timestamp in tl:
@@ -112,7 +113,7 @@ class Dataset():
                 if t_start <= timestamp and timestamp < t_end:
                     self.timestamp_list.append(timestamp)
             elif min_speed != None:
-                if self.get_speed(timestamp) > min_speed:
+                if self.get_speed(dl,timestamp) > min_speed:
                     self.timestamp_list.append(timestamp)
             elif targets_ais != None:
                 metadata = self.read_metadata(timestamp)
@@ -122,6 +123,8 @@ class Dataset():
                     self.timestamp_list.append(timestamp)
                     print(targets)
                     print(timestamp)
+            if len(self.timestamp_list)%10 == 0:
+                print(len(self.timestamp_list))
         
                     
         print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))
@@ -259,22 +262,22 @@ if __name__ == "__main__":
     #ds.read_metadata(ds.timestamp_list[0])
     
     
-    
+    """
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/speed/interval_60min/'
+    ds.path_timestamps = 'datasets/all/interval_30min/'
     ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     #t_start = datetime.datetime(2017,10,23)
     #t_end = datetime.datetime(2017,10,24)
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list, sampling_interval = 15)
-    ds.explore_speeds()
+    #ds.explore_speeds()
     
-    #ds.select_subset(min_speed=6)
+    ds.select_subset(min_speed=6)
     
-    #ds.write_timestamps_file('datasets/speed/interval_60min/timestamps')
+    ds.write_timestamps_file('datasets/speed/interval_30min/timestamps')
     
     #ds.select_subset(targets_ais=0)
-    
+    """
     
     """    
     ### LOAD DATASET ###
@@ -285,25 +288,29 @@ if __name__ == "__main__":
     
     #print(ds.timestamp_list)
     
-    """
+    
     ### load changing batch size testing ###
-    path_results = '/home/kristoffer/Documents/mastersthesis/results/ex4/'
-    ds = Dataset(cams_lenses = 'all')
+    path_results = '/home/kristoffer/Documents/mastersthesis/results/ex6/'
+    ds = Dataset(cams_lenses = [(1,1),(3,1)])
     ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy')
     
-    index = 6374*4+2
+    index = 183*4
     indices = range(index,index+4)
     #print(len(ds.timestamp_list_train))
-    print(ds.timestamp_list_train[index])
+    print(ds.timestamp_list_train[indices])
     
-    batch = ds.load_batch(ds.timestamp_list_train[[index]])
+    batch = ds.load_batch(ds.timestamp_list_train[indices])
     print(batch.shape)
     
-    for i in range(len(batch)):
-        
-        im = Image.fromarray(np.uint8(batch[i,:]*255), 'RGB')
-        im.show()
-    """   
+    maxval = np.amax(batch, axis=(1,2,3))
+    minval = np.amin(batch, axis=(1,2,3))
+    #for i in range(len(batch)):
+    #    maxval.append(np.amax(batch[i,:]))
+    #    minval.append(np.amin(batch[i,:]))
+        #im = Image.fromarray(np.uint8(batch[i,:]*255), 'RGB')
+        #im.show()
+    print(maxval)
+    print(minval)
     
     
     """

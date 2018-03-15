@@ -58,15 +58,17 @@ def save_plot_loss_history(path_results, train_val_ratio, n):
     train_loss = np.load(path_results+'loss_history_train.npy')
     val_loss = np.load(path_results+'loss_history_val.npy')
     
+    val_loss_interp = np.interp(range(len(train_loss)), range(train_val_ratio-1,len(train_loss),train_val_ratio), val_loss)
+    
     # moving average
     train_loss_avg = moving_average(train_loss, n=n)
-    val_loss_avg = moving_average(val_loss, n=n)
+    val_loss_avg = moving_average(val_loss_interp, n=n)
     
     fig = plt.figure()
     ax = plt.gca()
     plt.clf()
     plt.plot(range(1,len(train_loss_avg)+1),train_loss_avg, label='Training', linewidth=0.5)
-    plt.plot(range(train_val_ratio,(len(val_loss_avg)+1)*train_val_ratio, train_val_ratio), val_loss_avg, label='Validation', linewidth=0.5)
+    plt.plot(range(1,len(val_loss_avg)+1),val_loss_avg, label='Validation', linewidth=0.5)
     #plt.xticks([x*1830 for x in range(21)],range(21))
     plt.legend()
     
@@ -106,7 +108,10 @@ def create_reconstruction_plot(original_imgs, reconstructed_imgs, batch_size):
 
         # display original
         ax = plt.subplot(gs[i])#fig_rows, batch_size, i + 1)
-        plt.imshow(original_imgs[i])
+        try:
+            plt.imshow(original_imgs[i])
+        except:
+            continue
         ax.axis('off')  
         
         # display reconstruction
