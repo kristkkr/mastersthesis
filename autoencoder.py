@@ -26,16 +26,18 @@ class Autoencoder:
         
         # conv layer parameters
         conv_kernel_size1 = 5
+        conv_strides0 = 1
         conv_strides1 = 2
         conv_strides2 = (3,2)
         conv_strides3 = (1,2)
         
-        filters = [2**n for n in range(3,16)] # [8,16,32,64,128,256,512,1024]
+        #filters = [8,16,32,64,128,256,512,1024] 
+        #filters = [2**n for n in range(3,16)] 
+        filters = [8, 8*3, 8*3**2, 8*3**3, 8*3**4, 8*3**5]
         
         input_image = Input(shape=self.input_shape) # change to ds.IMAGE_SHAPE?
         
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(input_image)
-        #x = LeakyReLu(alpha=0.1)(x)
         x = BatchNormalization()(x)
         x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
@@ -43,31 +45,22 @@ class Autoencoder:
         x = BatchNormalization()(x)
         x = Conv2D(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)   
+
         x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)           
+        """        
         x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)   
         x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)  
-        """
-        x = Conv2D(filters=filters[7], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)   
-        x = Conv2D(filters=filters[8], kernel_size=conv_kernel_size1, strides=conv_strides3, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)     
-        x = Conv2D(filters=filters[15], kernel_size=conv_kernel_size1, strides=conv_strides3, activation = 'relu', padding = 'valid')(x)
-        x = BatchNormalization()(x)          
-        ### BOTTLENECK ###    
-        x = Conv2DTranspose(filters=filters[8], kernel_size=conv_kernel_size1, strides=conv_strides3, activation = 'relu', padding = 'valid')(x)
-        x = BatchNormalization()(x)
-        x = Conv2DTranspose(filters=filters[7], kernel_size=conv_kernel_size1, strides=conv_strides3, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)
-        x = Conv2DTranspose(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides2, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)
-        """
+        
+        
+        ### BOTTLENECK ###            
         x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
+        """        
         x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
@@ -100,7 +93,7 @@ class Autoencoder:
         train_val_ratio = train_batches//val_batches # better to use round()?
         
         loss_history = LossHistory()
-        loss_history.on_train_begin()
+        loss_history.on_train_begin(self.path_results)
         
         print('Total, train and val batches per epoch:', batches_per_epoch, train_batches, val_batches)
         print('Batch size:', batch_size)
@@ -200,9 +193,13 @@ class Autoencoder:
         
 
 class LossHistory(Callback):
-    def on_train_begin(self, log={}):
-        self.train_loss = []
-        self.val_loss = []
+    def on_train_begin(self, path_results, log={}):
+        try:
+            self.train_loss = np.load(path_results+'loss_history_train.npy')
+            self.val_loss = np.load(path_results+'loss_history_val.npy')
+        except:
+            self.train_loss = []
+            self.val_loss = []
 
     def on_train_batch_end(self, loss):
         self.train_loss.append(loss)
