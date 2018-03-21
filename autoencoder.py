@@ -16,11 +16,12 @@ from figures import create_reconstruction_plot, save_to_directory
 
 
 class Autoencoder:
-    def __init__(self, dataset, path_results):
+    def __init__(self, dataset, dataset_reconstruct, path_results):
         self.input_shape = dataset.IMAGE_SHAPE
-        self.model = self.create_model()
+        self.model = None #self.create_model()
         self.path_results = path_results
         self.dataset = dataset
+        self.dataset_reconstruct = dataset_reconstruct
             
     def create_model(self):
         
@@ -54,13 +55,12 @@ class Autoencoder:
         x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)  
         
-        
         ### BOTTLENECK ###            
         x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
-        """        
+        """     
         x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
         x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
@@ -74,7 +74,7 @@ class Autoencoder:
         autoencoder = Model(input_image, x)
         autoencoder.compile(optimizer='adadelta', loss='mean_absolute_error')
     
-        return autoencoder
+        self.model = autoencoder
         
     def train(self, epochs, batch_size): #val_split
         """
@@ -91,7 +91,7 @@ class Autoencoder:
         val_batches = len(ds.timestamp_list_val)*ds.images_per_timestamp//batch_size
         
         train_val_ratio = train_batches//val_batches # better to use round()?
-        
+        assert(train_val_ratio == round(len(ds.timestamp_list_train)/len(ds.timestamp_list_val)))
         loss_history = LossHistory()
         loss_history.on_train_begin(self.path_results)
         
@@ -136,8 +136,9 @@ class Autoencoder:
                     val_batch += 1
                     val_timestamp_index += batch_size//ds.images_per_timestamp
                     
-                save_to_directory(self, loss_history, failed_timestamps,epoch, (train_batch+1), train_val_ratio, model_freq=train_batches, loss_freq=train_val_ratio, n_move_avg=1)
+                save_to_directory(self, loss_history, failed_timestamps, epoch, train_batch, train_val_ratio, model_freq=10, loss_freq=train_val_ratio, reconstruct_freq=10, n_move_avg=1)
                 
+                #self.reconstruct(data='val', numb_of_timestamps=1, epoch = epoch)
 
     def train_on_generator(self, dataset, epochs, batch_size): #split_frac removed from arguments
         """
@@ -166,37 +167,34 @@ class Autoencoder:
                                      validation_steps = val_batches)  
         
     
-    def reconstruct(self, data, numb_of_timestamps, images_per_figure):
+    def reconstruct(self, data, numb_of_timestamps, epoch):
         
         if data == 'train':
-            timestamps = self.dataset.timestamp_list_train[:numb_of_timestamps+1]
+            timestamps = self.dataset_reconstruct.timestamp_list_train[:numb_of_timestamps+1]
         elif data == 'val':
-            timestamps = self.dataset.timestamp_list_val[:numb_of_timestamps+1]
+            timestamps = self.dataset_reconstruct.timestamp_list_val[:numb_of_timestamps+1]
         else:
-            assert('Invalid data argument')
+            print('Invalid data argument, no reconstruction possible.')
+        
+        
+        images_per_figure = len(self.dataset_reconstruct.cams_lenses)
             
         i = 0
         while i < numb_of_timestamps:
             # x_batch = ds.load_batch(ds.timestamp_list[val_batch:val_batch+batch_size//ds.images_per_timestamp])
-            x_batch = self.dataset.load_batch(timestamps[i:i+images_per_figure//self.dataset.images_per_timestamp])
+            x_batch = self.dataset_reconstruct.load_batch(timestamps[i:i+images_per_figure//self.dataset_reconstruct.images_per_timestamp])
             y_batch = self.model.predict_on_batch(x_batch)
             plot = create_reconstruction_plot(x_batch, y_batch, images_per_figure)
-            plot.savefig(self.path_results+'reconstruction-'+data+str(i+1)+'.jpg')
-            i += images_per_figure//self.dataset.images_per_timestamp
+            plot.savefig(self.path_results+'reconstruction-'+data+str(i+1)+'-epoch'+str(epoch+1)+'.jpg')
+            i += images_per_figure//self.dataset_reconstruct.images_per_timestamp
             print('Reconstruction saved')
             
-    def test(self, dataset):
-        """
-        Test the model on test data. Return score.
-        """
-        pass
-        
 
 class LossHistory(Callback):
     def on_train_begin(self, path_results, log={}):
         try:
-            self.train_loss = np.load(path_results+'loss_history_train.npy')
-            self.val_loss = np.load(path_results+'loss_history_val.npy')
+            self.train_loss = list(np.load(path_results+'loss_history_train.npy'))
+            self.val_loss = list(np.load(path_results+'loss_history_val.npy'))
         except:
             self.train_loss = []
             self.val_loss = []

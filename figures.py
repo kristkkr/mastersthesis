@@ -14,29 +14,14 @@ from PIL import Image
 from skimage import filters, morphology
 from keras.preprocessing.image import ImageDataGenerator
 
-"""
-def test(autoencoder, path_test, path_results, batch_size, n_batches, shuffle=False, image_shape=(720,1280,3)):
-    target_size = image_shape[:2]
 
-    test_datagen = ImageDataGenerator(rescale=1./255)
-    batch = 0
-    for test_batch in test_datagen.flow_from_directory(path_test, target_size=target_size, class_mode=None, batch_size=batch_size, shuffle=shuffle):
-        original_imgs = test_batch
-        reconstructed_imgs = autoencoder.predict_on_batch(original_imgs).reshape((batch_size,)+image_shape)
-        fig = create_reconstruction_plot(original_imgs, reconstructed_imgs, batch_size)
-        batch_str = insert_leading_zeros(batch,4)
-        fig.savefig(path_results+'test_batch'+batch_str+'.png', transparent=False, bbox_inches='tight')
-        batch +=1
-        if batch >= n_batches:
-            return 
-"""
-def save_to_directory(autoencoder, loss_history, failed_timestamps, epoch, batch, train_val_ratio, model_freq, loss_freq, n_move_avg):
+def save_to_directory(autoencoder, loss_history, failed_timestamps, epoch, batch, train_val_ratio, model_freq, loss_freq, reconstruct_freq, n_move_avg):
     # THIS FUNCTION DOES NOT BELONG HERE. autoencoder?
     
-    epoch_str = insert_leading_zeros(epoch,2)
-    batch_str = insert_leading_zeros(batch,6)
-
-    if batch%loss_freq == 0:
+    epoch_str = insert_leading_zeros(epoch+1,2)
+    batch_str = insert_leading_zeros(batch+1,6)
+    
+    if batch+1%loss_freq == 0:
         np.save(autoencoder.path_results+'loss_history_train', loss_history.train_loss)
         np.save(autoencoder.path_results+'loss_history_val', loss_history.val_loss)
         save_plot_loss_history(autoencoder.path_results, train_val_ratio, n_move_avg)
@@ -44,12 +29,11 @@ def save_to_directory(autoencoder, loss_history, failed_timestamps, epoch, batch
         with open(autoencoder.path_results+'failed_batches.txt', 'w') as text: # save failed batches
             print('Timestamps of failed batches:\n{}'.format(failed_timestamps), file=text)
 
-    #if batch%reconstruction_freq == 0:
-        #save_reconstructions_during_training(autoencoder.model, path_results, val_batch, image_shape, val_batch_size, epoch_str, batch_str, loss_history)
-    if batch%model_freq == 0:
+    if (epoch+1)%model_freq == 0: 
         autoencoder.model.save(autoencoder.path_results+'epoch'+epoch_str+'_batch'+batch_str+'_valloss'+str(round(loss_history.val_loss[-1],4))+'.hdf5')
         print('Model saved')
-
+    if (epoch+1)%reconstruct_freq == 0: 
+        autoencoder.reconstruct(data='val', numb_of_timestamps=1, epoch = epoch)
 
 def save_plot_loss_history(path_results, train_val_ratio, n):
     # THIS FUNCTION DOES NOT BELONG HERE. datahandler -> Figures?
@@ -150,7 +134,7 @@ def moving_average(a, n=3) :
 
 def insert_leading_zeros(numb, n):
     # converts numb to string and add n leading zeros
-    numb_str = str(numb+1)
+    numb_str = str(numb)
     while len(numb_str)<n:
         numb_str = '0'+numb_str
     return numb_str

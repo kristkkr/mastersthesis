@@ -42,13 +42,16 @@ class Dataset():
         self.timestamp_list_train = []
         self.timestamp_list_val = []
         self.timestamp_list_test = []
+        self.init_cams_lenses(cams_lenses)
+        self.images_per_timestamp = len(self.cams_lenses)    
+        
+    def init_cams_lenses(self, cams_lenses):
         if cams_lenses == 'all':
             self.cams_lenses = [(i,j) for i in range(self.NUMB_OF_CAMERAS) for j in range(self.NUMB_OF_LENSES)]
             print('All cameras and lenses included in dataset')
         else: 
             self.cams_lenses = cams_lenses
             print('Selection of cameras and lenses:', self.cams_lenses)
-        self.images_per_timestamp = len(self.cams_lenses)        
         
     def get_all_timestamps_list(self):
         """
