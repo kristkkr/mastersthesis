@@ -97,7 +97,7 @@ class Dataset():
         self.timestamp_list_val = self.timestamp_list[int(size*split_frac[0]):int(size*sum(split_frac[0:2]))]
         self.timestamp_list_test = self.timestamp_list[int(size*sum(split_frac[0:2])):size]
     
-    def select_subset(self, t_start=None, t_end=None, min_speed=None, targets_ais=None):
+    def select_subset(self, t_start=None, t_end=None, min_speed=None, targets_ais_min=None, max_range=None):
         """ 
         The arguments 't_start' and 't_end' is the start and end of the time t.
         'min_speed'
@@ -118,16 +118,17 @@ class Dataset():
             elif min_speed != None:
                 if self.get_speed(dl,timestamp) > min_speed:
                     self.timestamp_list.append(timestamp)
-            elif targets_ais != None:
-                metadata = self.read_metadata(timestamp)
-                targets = metadata["targets_ais"]
-                #print(len(targets))
-                if len(targets) <= targets_ais:
+            elif targets_ais_min != None:
+                targets = dl.get_ais_targets(timestamp, own_pos=self.get_pos(dl, timestamp), max_range=max_range) #also returns ownship
+                
+                #print(targets)
+                if len(targets) > targets_ais_min:
                     self.timestamp_list.append(timestamp)
-                    print(targets)
                     print(timestamp)
-            if len(self.timestamp_list)%10 == 0:
-                print(len(self.timestamp_list))
+                    
+
+            #if len(self.timestamp_list)%10 == 0:
+            #    print(len(self.timestamp_list))
         
                     
         print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))
@@ -219,8 +220,6 @@ class Dataset():
         
         
         
-        
-        
     def write_timestamps_file(self, filename):
         #with open(filename,'wb') as fp:
         #    pickle.dump(self.timestamp_list,fp)
@@ -254,13 +253,18 @@ class Dataset():
     def get_speed(self, dl, timestamp):
         vel = dl.get_seapath_data(timestamp)['velocity']
         return np.linalg.norm(vel)
+    
+    def get_pos(self, dl, timestamp):
+        pos = dl.get_seapath_data(timestamp)['position']
+        return pos
+    
  
 class Figures():
     pass
 
 if __name__ == "__main__":
     
-    
+    """
     ### TESTS ###
     #cams_lenses = [(1,1), (3,1)]
     ds = Dataset('all')
@@ -270,27 +274,24 @@ if __name__ == "__main__":
     batch = ds.load_batch([ds.timestamp_list[0]])
     image = batch[0,:]
     masked_images = ds.mask_image(image,3,3)
-    Image.fromarray(np.uint8(masked_images[4]*255),'RGB').show()
-    
+    #Image.fromarray(np.uint8(masked_images[4]*255),'RGB').show()
+    """
     
 
     
-    """
+    
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/all/interval_30min/'
+    ds.path_timestamps = 'datasets/speed/interval_60sec/'
     ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
-    #t_start = datetime.datetime(2017,10,23)
-    #t_end = datetime.datetime(2017,10,24)
-    #ds.timestamp_list = ds.sample_list(ds.timestamp_list, sampling_interval = 15)
-    #ds.explore_speeds()
+    #ds.timestamp_list = ds.timestamp_list[:1]
+    #ds.select_subset(min_speed=6)
+    ds.select_subset(targets_ais_min=1, max_range=1000)
     
-    ds.select_subset(min_speed=6)
+    ds.write_timestamps_file('datasets/ais/interval_60sec/timestamps')
     
-    ds.write_timestamps_file('datasets/speed/interval_30min/timestamps')
     
-    #ds.select_subset(targets_ais=0)
-    """
+    
     
     """    
     ### LOAD DATASET ###
