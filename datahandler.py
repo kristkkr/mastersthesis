@@ -212,15 +212,19 @@ class Dataset():
         mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
         ulc = (0,0) #upper left corner coordinates
         rectangles = []
-        rectangles.append([ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])])
+        for x in range(columns):
+            for y in range(rows):
+                rectangles.append([ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])])
+                ulc = (ulc[0],ulc[1]+mask_shape[0])
+            ulc = (ulc[0]+mask_shape[1],0)
         
-        print(mask_shape)
+        
         print(rectangles)
         im = Image.fromarray(np.uint8(image*255),'RGB')
         draw = ImageDraw.Draw(im)
-        draw.rectangle(rectangles[0],fill=0)
+        draw.rectangle(rectangles[4],fill=0)
         
-        #im.show()
+        im.show()
         
         return 
         
