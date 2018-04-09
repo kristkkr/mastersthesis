@@ -192,41 +192,30 @@ class Dataset():
                 yield (x_batch, x_batch)
     
     def mask_image(self, image, rows, columns):
-        #masked_image = np.empty((grid_shape[0]*grid_shape[1], self.IMAGE_SHAPE))
+        """
+        Returns a numpy array of size rows*columns containing masked versions of the argument image.
+        """
         
-        #polygons = [(i*self.IMAGE_SHAPE[0]//grid_shape[0] ,j*self.IMAGE_SHAPE[1]//grid_shape[1]) for i in range(grid_shape[0]+1) for j in range(grid_shape[1]+1)]
-        #polygons2 = [[(i,j),(i+1,j),(i,j+1),(i+1,j+1)] for i in range(grid[0]) for j in range(grid[1])]
-        
-        #g = np.meshgrid()
-        
-        #l = []
-        #for i in range(grid[0]):
-        #    for j in range(grid[1]):
-            
-        #im = Image.fromarray(image)
-        
-        #for i in range(grid[0]*grid[1]):
-         #   masked_im = ImageDraw.Draw(im).polygon()
-         
-         
+        masked_images = np.empty((rows*columns,)+ self.IMAGE_SHAPE)
+                 
         mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
         ulc = (0,0) #upper left corner coordinates
-        rectangles = []
+        
+        i = 0
+                        
         for x in range(columns):
             for y in range(rows):
-                rectangles.append([ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])])
+                rectangle = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
+                im = Image.fromarray(np.uint8(image*255),'RGB')
+                draw = ImageDraw.Draw(im)
+                draw.rectangle(rectangle,fill=0)
+                masked_images[i] = np.asarray(im, dtype=np.uint8)
+                i += 1
+                                
                 ulc = (ulc[0],ulc[1]+mask_shape[0])
             ulc = (ulc[0]+mask_shape[1],0)
         
-        
-        print(rectangles)
-        im = Image.fromarray(np.uint8(image*255),'RGB')
-        draw = ImageDraw.Draw(im)
-        draw.rectangle(rectangles[4],fill=0)
-        
-        im.show()
-        
-        return 
+        return masked_images.astype('float32') / 255.
         
         
         
@@ -280,8 +269,8 @@ if __name__ == "__main__":
     ds.images_per_timestamp = len(ds.cams_lenses)
     batch = ds.load_batch([ds.timestamp_list[0]])
     image = batch[0,:]
-    image = ds.mask_image(image,3,3)
-    #Image.fromarray(np.uint8(image*255),'RGB').show()
+    masked_images = ds.mask_image(image,3,3)
+    Image.fromarray(np.uint8(masked_images[4]*255),'RGB').show()
     
     
 
