@@ -191,10 +191,10 @@ class Dataset():
     
                 yield (x_batch, x_batch)
     
-    def mask_image(self, image, grid):
-        #masked_image = np.empty((grid[0]*grid[1], self.IMAGE_SHAPE))
+    def mask_image(self, image, rows, columns):
+        #masked_image = np.empty((grid_shape[0]*grid_shape[1], self.IMAGE_SHAPE))
         
-        polygons = [(i*self.IMAGE_SHAPE[0]//grid[0] ,j*self.IMAGE_SHAPE[1]//grid[1]) for i in range(grid[0]+1) for j in range(grid[1]+1)]
+        #polygons = [(i*self.IMAGE_SHAPE[0]//grid_shape[0] ,j*self.IMAGE_SHAPE[1]//grid_shape[1]) for i in range(grid_shape[0]+1) for j in range(grid_shape[1]+1)]
         #polygons2 = [[(i,j),(i+1,j),(i,j+1),(i+1,j+1)] for i in range(grid[0]) for j in range(grid[1])]
         
         #g = np.meshgrid()
@@ -207,8 +207,22 @@ class Dataset():
         
         #for i in range(grid[0]*grid[1]):
          #   masked_im = ImageDraw.Draw(im).polygon()
-    
-        print(polygons)
+         
+         
+        mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
+        ulc = (0,0) #upper left corner coordinates
+        rectangles = []
+        rectangles.append([ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])])
+        
+        print(mask_shape)
+        print(rectangles)
+        im = Image.fromarray(np.uint8(image*255),'RGB')
+        draw = ImageDraw.Draw(im)
+        draw.rectangle(rectangles[0],fill=0)
+        
+        #im.show()
+        
+        return 
         
         
         
@@ -256,14 +270,17 @@ if __name__ == "__main__":
     
     ### TESTS ###
     #cams_lenses = [(1,1), (3,1)]
-    #ds = Dataset('all')
+    ds = Dataset('all')
     
-    #ds.read_timestamps_file('datasets/all/interval_60sec/timestamps')
-    #ds.images_per_timestamp = len(ds.cams_lenses)
-    #batch = ds.load_batch(ds.timestamp_list[:6])
-    #print(batch.shape)
-    #ds.read_metadata(ds.timestamp_list[0])
+    ds.read_timestamps_file('datasets/all/interval_60min/timestamps.npy')
+    ds.images_per_timestamp = len(ds.cams_lenses)
+    batch = ds.load_batch([ds.timestamp_list[0]])
+    image = batch[0,:]
+    image = ds.mask_image(image,3,3)
+    #Image.fromarray(np.uint8(image*255),'RGB').show()
     
+    
+
     
     """
     ### CREATE NEW DATASET ###
@@ -291,7 +308,7 @@ if __name__ == "__main__":
     
     #print(ds.timestamp_list)
     
-    
+    """
     ### load changing batch size testing ###
     path_results = '/home/kristoffer/Documents/mastersthesis/results/ex6/'
     ds = Dataset(cams_lenses = [(1,1),(3,1)])
@@ -314,7 +331,7 @@ if __name__ == "__main__":
         #im.show()
     print(maxval)
     print(minval)
-    
+    """
     
     """
     
@@ -337,13 +354,7 @@ if __name__ == "__main__":
     print(arr.shape)
     print(arr)    
     """
-    #arr=next(batch)[0][7,:]     
-    #arr=next(batch)[0][7,:]     
-    #Image.fromarray(np.uint8(next(batch)[0][7,:]*255),'RGB').show()
-    #Image.fromarray(np.uint8(next(batch)[0][7,:]*255),'RGB').show()
-    #arr=next(batch)[0][1,:]     
-    
-    #Image.fromarray(np.uint8(arr*255),'RGB').show()
+
     
 
 
