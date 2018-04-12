@@ -15,25 +15,25 @@ from skimage import filters, morphology
 from keras.preprocessing.image import ImageDataGenerator
 
 
-def save_to_directory(autoencoder, loss_history, failed_timestamps, epoch, batch, train_val_ratio, model_freq, loss_freq, reconstruct_freq, n_move_avg):
+def save_to_directory(autoencoder, loss_history, failed_im_load, epoch, batch, train_val_ratio, model_freq, loss_freq, reconstruct_freq, n_move_avg):
     # THIS FUNCTION DOES NOT BELONG HERE. autoencoder?
     
     epoch_str = insert_leading_zeros(epoch+1,2)
     batch_str = insert_leading_zeros(batch+1,6)
     
-    if batch+1%loss_freq == 0:
+    if (batch+1)%loss_freq == 0:
         np.save(autoencoder.path_results+'loss_history_train', loss_history.train_loss)
         np.save(autoencoder.path_results+'loss_history_val', loss_history.val_loss)
         save_plot_loss_history(autoencoder.path_results, train_val_ratio, n_move_avg)
-        
-        with open(autoencoder.path_results+'failed_batches.txt', 'w') as text: # save failed batches
-            print('Timestamps of failed batches:\n{}'.format(failed_timestamps), file=text)
+        np.save(autoencoder.path_results+'failed_imageload_during_training', failed_im_load)
+        with open(autoencoder.path_results+'failed_imageload_during_training.txt', 'w') as text: 
+            print('Timestamps and cam_lens of failed batches:\n{}'.format(failed_im_load), file=text)
 
-    if (epoch+1)%model_freq == 0: 
+    if (batch+1)%model_freq == 0: 
         autoencoder.model.save(autoencoder.path_results+'epoch'+epoch_str+'_batch'+batch_str+'_valloss'+str(round(loss_history.val_loss[-1],4))+'.hdf5')
         print('Model saved')
-    if (epoch+1)%reconstruct_freq == 0: 
-        autoencoder.reconstruct(data='val', numb_of_timestamps=1, epoch = epoch)
+    if (batch+1)%reconstruct_freq == 0: 
+        autoencoder.test(what_data='val', numb_of_timestamps=1, epoch = epoch, batch = batch)
 
 def save_plot_loss_history(path_results, train_val_ratio, n):
     # THIS FUNCTION DOES NOT BELONG HERE. datahandler -> Figures?
@@ -66,23 +66,11 @@ def save_plot_loss_history(path_results, train_val_ratio, n):
     plt.savefig(path_results+'loss_history_avg_n'+str(n)+'.eps', format='eps')
     plt.close()
         
-def save_reconstructions_during_training(autoencoder, path_results, val_batch, image_shape, batch_size, epoch_str, batch_str, loss_history):
-    # THIS FUNCTION DOES NOT BELONG HERE. datahandler -> Figures?
-    original_imgs = val_batch
-
-    reconstructed_imgs = autoencoder.predict_on_batch(original_imgs)
-    reconstructed_imgs = reconstructed_imgs.reshape((batch_size,)+image_shape)
-
-    plot = create_reconstruction_plot(original_imgs, reconstructed_imgs, batch_size)
-       
-    plot.savefig(path_results+'epoch'+epoch_str+'_batch'+batch_str+'_valloss'+str(round(loss_history.val_loss[-1],4))+'.png')
-    print('Plot saved')
-    plt.close(plot)
-
         
 def create_reconstruction_plot(original_imgs, reconstructed_imgs, batch_size):
     fig_rows = 3
-
+    
+    batch_size = len(original_imgs)
     gs = gridspec.GridSpec(fig_rows, batch_size)
     gs.update(wspace=0.02, hspace=0.02)
     

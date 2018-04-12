@@ -35,10 +35,10 @@ class Dataset():
         self.path = '/nas0/'
         self.path_timestamps = None
         self.sampling_interval = 1
-        self.date_list = []
+        #self.date_list = []
         self.hour_list = [] 
         self.timestamp_list = []
-        self.timestamp_list_shuffled = []
+        #self.timestamp_list_shuffled = []
         self.timestamp_list_train = []
         self.timestamp_list_val = []
         self.timestamp_list_test = []
@@ -141,40 +141,35 @@ class Dataset():
     def flatten_list(self, l):
         return list(itertools.chain(*l))
     
-    def get_data_dict(self, timestamp_list, cams_lenses):
-        """
-        Returns a dictionary containing timestamp_list as keys and images as values.
-        """
-        pass
     
-    def load_batch(self, timestamps): # batch_size added, could be removed again?
+    def load_batch(self, timestamps, failed_im_load): #, mask_image=false, grid_size=None) # batch_size added, could be removed again?
         """
         Load a batch of images.
         The argument 'timestamps' is a list of timestamps to be included in the batch.
         Returns a numpy array of shape (batch_size,1920,2560,3) of type np.float32 with range [0,1].
         batch size depends on if images are correctly loaded.
         """
-        #batch_size = len(timestamps)*self.images_per_timestamp
-                   
-        batch = np.empty((0,)+(self.IMAGE_SHAPE), np.uint8) #np.empty((batch_size,)+(self.IMAGE_SHAPE), np.uint8) 
+                           
+        batch = np.empty((0,)+(self.IMAGE_SHAPE), np.uint8) 
         
         dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
         
         i = 0
         for timestamp in timestamps:
             for cam_lens in self.cams_lenses: 
+                try:
+                    im = dl.load_image(timestamp, dl.TYPE_CAMERA, cam_lens)
+                    #if not im == []: 
+                    #if mask_image:
+                           
+                    batch.resize(((i+1,)+(self.IMAGE_SHAPE))) # not double tested if correct. if wrong, we train at only zeros without noiticing
+                    batch[i,:] = im
                 
-                try: # perhaps unnecessary exception handling, but does not hurt either.
-                    im = dl.load_image(timestamp, dl.TYPE_CAMERA,cam_lens)
-                    if not im == []:
-                        batch.resize(((i+1,)+(self.IMAGE_SHAPE))) # not double tested if correct. if wrong, we train at only zeros without noiticing
-                        batch[i,:] = im
-                    
-                        i+=1
+                    i+=1
                 except:
-                    continue
-                            
-        return batch.astype('float32') / 255.
+                    failed_im_load.append((timestamp, cam_lens))
+        
+        return batch.astype('float32') / 255., failed_im_load
     
     
     def generate_batches(self, timestamp_list, batch_size): 
@@ -200,23 +195,23 @@ class Dataset():
         masked_images = np.empty((rows*columns,)+ self.IMAGE_SHAPE)
                  
         mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
-        ulc = (0,0) #upper left corner coordinates
+        ulc = (0,0) # upper left corner coordinates
         
         i = 0
                         
         for x in range(columns):
             for y in range(rows):
-                rectangle = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
-                im = Image.fromarray(np.uint8(image*255),'RGB')
+                rectangle_coordinates = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
+                im = Image.fromarray(np.uint8(image*255),'RGB') # remove scaleing
                 draw = ImageDraw.Draw(im)
-                draw.rectangle(rectangle,fill=0)
+                draw.rectangle(rectangle_coordinates,fill=0)
                 masked_images[i] = np.asarray(im, dtype=np.uint8)
                 i += 1
                                 
                 ulc = (ulc[0],ulc[1]+mask_shape[0])
             ulc = (ulc[0]+mask_shape[1],0)
         
-        return masked_images.astype('float32') / 255.
+        return masked_images.astype('float32') / 255. # remove cast and scale
         
         
         
