@@ -137,7 +137,72 @@ class Autoencoder:
                     
                 save_to_directory(self, loss_history, failed_im_load, epoch, train_batch, train_val_ratio, model_freq=10*train_val_ratio, loss_freq=train_val_ratio, reconstruct_freq=5*train_val_ratio, n_move_avg=1)
                 
+    def train_inpainting(self, epochs, batch_size, inpainting_grid):
+        """
+        Train by the use of train_on_batch() and Dataset.load_batch()
+        """
+        
+        ds = self.dataset
+        np.save(self.path_results+'data_timestamp_list_train', ds.timestamp_list_train)
+        np.save(self.path_results+'data_timestamp_list_val', ds.timestamp_list_val)
+        
+        
+        batches_per_epoch = len(ds.timestamp_list)*ds.images_per_timestamp//batch_size
+        train_batches = len(ds.timestamp_list_train)*ds.images_per_timestamp//batch_size
+        val_batches = len(ds.timestamp_list_val)*ds.images_per_timestamp//batch_size
+        
+        train_val_ratio = round(train_batches/val_batches) # better to use round()?
+        
+        loss_history = LossHistory()
+        loss_history.on_train_begin(self.path_results)
+        
+        print('Total, train and val batches per epoch:', batches_per_epoch, train_batches, val_batches)
+        print('Batch size:', batch_size)
+        failed_im_load = []
+        
+        for epoch in range(epochs):
+            print('Epoch '+str(epoch+1)+'/'+str(epochs))
+            val_batch = 0 # keeps track of what number of val_batch we're currently at
+            train_timestamp_index = 0 # keeps track of index in timestamp_list_train
+            val_timestamp_index = 0 # keeps track of index in timestamp_list_val
+            
+            # train
+            for train_batch in range(train_batches):
+                print('Training batch '+str(train_batch+1)+'/'+str(train_batches)+'. ', end='')
+                x_batch = []
+                x_batch, failed_im_load = ds.load_batch(ds.timestamp_list_train[train_timestamp_index:train_timestamp_index+batch_size//ds.images_per_timestamp], failed_im_load)
+                if x_batch == []:
+                    continue
                 
+                ### TRAIN
+                x=x_batch # a single image
+                x_masked = ds.mask_image(x, rows=inpainting_grid[0], columns=inpainting_grid[1])     
+                
+                y_pred = self.model.train_on_batch(x_masked, x)
+
+                ###
+                loss_history.on_train_batch_end(loss)
+                print('Training loss: '+str(loss))
+                
+                train_timestamp_index += batch_size//ds.images_per_timestamp
+                
+                # validate
+                if (train_batch+1) % train_val_ratio == 0:           
+                    print('Validate batch '+str(val_batch+1)+'/'+str(val_batches)+'. ', end='')
+                    x_batch = []
+                    x_batch, failed_im_load = ds.load_batch(ds.timestamp_list_val[val_timestamp_index:val_timestamp_index+batch_size//ds.images_per_timestamp], failed_im_load)
+                    if x_batch == []:
+                        continue
+                    loss = self.model.test_on_batch(x_batch,x_batch)
+                    loss_history.on_val_batch_end(loss)                    
+                    print('Validate loss: '+str(loss))    
+                    
+                    val_batch += 1
+                    val_timestamp_index += batch_size//ds.images_per_timestamp
+                    
+                save_to_directory(self, loss_history, failed_im_load, epoch, train_batch, train_val_ratio, model_freq=10*train_val_ratio, loss_freq=train_val_ratio, reconstruct_freq=5*train_val_ratio, n_move_avg=1)
+                
+                    
 
     def test(self, what_data, numb_of_timestamps, epoch, batch):
         """
