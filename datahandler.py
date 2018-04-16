@@ -101,7 +101,8 @@ class Dataset():
         """ 
         The arguments 't_start' and 't_end' is the start and end of the time t.
         'min_speed'
-        'targets_ais' does not work yet.
+        'targets_ais_min' is the minimum number of ais-targets required for including the timestamp.
+        'max_range' is the corresponding distance to ais-targets. 
         
         """        
         tl = ds.timestamp_list
@@ -187,12 +188,15 @@ class Dataset():
     
                 yield (x_batch, x_batch)
     
-    def mask_image(self, image, rows, columns):
+    def mask_image(self, image, grid): #rows, columns):
         """
-        Returns a numpy array of size rows*columns containing masked versions of the argument image.
+        Returns a numpy array of size rows*columns containing masked versions of the argument image
+        and a equally sized batch of copies of the original image.
         """
-        
-        masked_images = np.empty((rows*columns,)+ self.IMAGE_SHAPE)
+        rows, columns = grid
+        image = image[0,:,:,:]
+        original_image_batch = np.empty((rows*columns,)+ self.IMAGE_SHAPE)
+        masked_images = np.copy(original_image_batch)
                  
         mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
         ulc = (0,0) # upper left corner coordinates
@@ -206,12 +210,14 @@ class Dataset():
                 draw = ImageDraw.Draw(im)
                 draw.rectangle(rectangle_coordinates,fill=0)
                 masked_images[i] = np.asarray(im, dtype=np.uint8)
+                
+                original_image_batch[i] = image
                 i += 1
                                 
                 ulc = (ulc[0],ulc[1]+mask_shape[0])
             ulc = (ulc[0]+mask_shape[1],0)
         
-        return masked_images.astype('float32') / 255. # remove cast and scale
+        return masked_images.astype('float32') / 255. , original_image_batch # remove cast and scale
         
         
         
