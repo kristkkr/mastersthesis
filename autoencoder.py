@@ -174,8 +174,12 @@ class Autoencoder:
                     continue
                 
                 ### TRAIN
-                x_batch_masked, x_batch = ds.mask_image(x, inpainting_grid)
-                
+                x_batch_masked = ds.mask_image(x, inpainting_grid)
+                orignial_im = x_batch_masked[0]
+                x_batch_masked = x_batch_masked[1:batch_size+1]
+                x_batch = np.empty(x_batch_masked.shape)
+                for i in range(batch_size):
+                    x_batch[i] = orignial_im
                 loss = self.model.train_on_batch(x_batch_masked, x_batch)
                 ###
                 loss_history.on_train_batch_end(loss)
@@ -191,8 +195,12 @@ class Autoencoder:
                     if x == []:
                         continue
  
-                    x_batch_masked, x_batch = ds.mask_image(x, inpainting_grid)
-                   
+                    x_batch_masked = ds.mask_image(x, inpainting_grid)
+                    orignial_im = x_batch_masked[0]
+                    x_batch_masked = x_batch_masked[1:batch_size+1]
+                    x_batch = np.empty(x_batch_masked.shape)
+                    for i in range(batch_size):
+                        x_batch[i] = orignial_im
                     loss = self.model.test_on_batch(x_batch_masked, x_batch)
                     loss_history.on_val_batch_end(loss)                    
                     print('Validate loss: '+str(loss))    
@@ -251,14 +259,18 @@ class Autoencoder:
                     
         i = 0
         while i < numb_of_timestamps:
-            x,_ = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
-            x_batch_masked, x_batch = self.dataset.mask_image(x, inpainting_grid)
-
-            y_batch = self.model.predict_on_batch(x_batch)
-            plot = create_reconstruction_plot(x_batch, x_batch_masked, y_batch)
-            plot.savefig(self.path_results+'reconstruction-'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data+str(i+1)+'.jpg')
+            x,failed_im_load = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
+            
+            for image in range(len(x)):
+                    
+                x_batch_masked = self.dataset.mask_image(x[image], inpainting_grid)
+                #x_batch_original_and_masked = np.concatenate((x_batch[0], x_batch_masked), axis=0)
+                y_batch = self.model.predict_on_batch(x_batch_masked)
+                plot = create_reconstruction_plot(x_batch_masked, y_batch)
+                plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data+str(i+1)+'img'+str(image+1)+'.jpg')
+                print('Reconstruction saved')
             i += 1
-            print('Reconstruction saved')
+            
             
 
 class LossHistory(Callback):

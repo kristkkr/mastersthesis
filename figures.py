@@ -42,7 +42,7 @@ def save_to_directory(autoencoder, loss_history, failed_im_load, epoch, batch,ti
         autoencoder.test_inpainting(what_data='val', timestamp_index=timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
 
 def save_plot_loss_history(path_results, train_val_ratio, n, single_im):
-    # THIS FUNCTION DOES NOT BELONG HERE. datahandler -> Figures?
+    # THIS FUNCTION DOES NOT BELONG HERE. autoencoder?
     # n: in moving average
         
     train_loss = np.load(path_results+'loss_history_train.npy')
@@ -73,46 +73,46 @@ def save_plot_loss_history(path_results, train_val_ratio, n, single_im):
     plt.close()
         
         
-def create_reconstruction_plot(original_imgs, masked_imgs, reconstructed_imgs):
+def create_reconstruction_plot(masked_imgs, reconstructed_imgs):
     fig_rows = 4
+    fig_columns = len(masked_imgs)
+    abs_err = np.empty((masked_imgs.shape[:3]))
     
-    batch_size = len(original_imgs)
-    gs = gridspec.GridSpec(fig_rows, batch_size)
+    gs = gridspec.GridSpec(fig_rows, fig_columns)
     gs.update(wspace=0.02, hspace=0.02)
-    
     scale=80
-    plot = plt.figure(figsize=(2560*batch_size//scale,1920*fig_rows//scale))#figsize=(30, 20)) #(figsize=(width,height))
-    for i in range(batch_size):
+    plot = plt.figure(figsize=(2560*fig_columns//scale,1920*fig_rows//scale))
+    for i in range(fig_columns):
 
-        # display original
-        ax = plt.subplot(gs[i])#fig_rows, batch_size, i + 1)
+        # display original and masked
+        ax = plt.subplot(gs[i])#fig_rows, fig_columns, i + 1)
         try:
-            plt.imshow(original_imgs[i])
+            plt.imshow(masked_imgs[i])
         except:
             continue
         ax.axis('off')  
         
-        # display masked
-        ax = plt.subplot(gs[i+batch_size]) 
-        plt.imshow(masked_imgs[i])
+        # display reconstructions
+        ax = plt.subplot(gs[i+fig_columns]) 
+        plt.imshow(reconstructed_imgs[i])
         ax.axis('off')        
         
-        # display reconstruction
-        ax = plt.subplot(gs[i+2*batch_size]) #fig_rows, batch_size, i + 1 + batch_size)
-        plt.imshow(reconstructed_imgs[i])
-        ax.axis('off')
-
         # reconstruction error in grayscale
-        err0 = np.abs(reconstructed_imgs[i,:,:,0] - original_imgs[i,:,:,0])
-        err1 = np.abs(reconstructed_imgs[i,:,:,1] - original_imgs[i,:,:,1])
-        err2 = np.abs(reconstructed_imgs[i,:,:,2] - original_imgs[i,:,:,2])
-        
-        abs_err_gray = (err0+err1+err2)/3
-        
-        ax = plt.subplot(gs[i+3*batch_size]) #fig_rows, batch_size, i + 1 + 2*batch_size)
-        plt.imshow(abs_err_gray, cmap='gray')
+        """"
+        err0 = np.abs(reconstructed_imgs[i,:,:,0] - masked_imgs[0,:,:,0])
+        err1 = np.abs(reconstructed_imgs[i,:,:,1] - masked_imgs[0,:,:,1])
+        err2 = np.abs(reconstructed_imgs[i,:,:,2] - masked_imgs[0,:,:,2])
+        abs_err[i] = (err0+err1+err2)/3
+        """
+        abs_err[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], masked_imgs[0])), axis=2)
+        ax = plt.subplot(gs[i+2*fig_columns]) 
+        plt.imshow(abs_err[i], cmap='gray')
         ax.axis('off')
-
+        
+        abs_err_reconstructions = np.abs(np.subtract(abs_err[0], abs_err[i]))
+        ax = plt.subplot(gs[i+3*fig_columns])
+        plt.imshow(abs_err_reconstructions, cmap='gray')
+        ax.axis('off')
     #plt.subplots_adjust(wspace=0.02,hspace=0.02)
     
     plt.close(plot)

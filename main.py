@@ -16,32 +16,31 @@ from dataloader import DataLoader
 from datahandler import Dataset
 from autoencoder import Autoencoder
 
-
+#from figures import save_plot_loss_history
 # initialize model
 """
-ds = Dataset('all')
-path_results = '/home/kristoffer/Documents/mastersthesis/results/ex8/'
+ds = Dataset([(0,1)]) #[(1,1),(3,1)])
+path_results = '/home/kristoffer/Documents/mastersthesis/results/ex13/validation/'
+#save_plot_loss_history(path_results, train_val_ratio=9, n=100, single_im=False)
 
-ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy') 
-ds.timestamp_list_val = np.load(path_results+'data_timestamp_list_val.npy') 
-train_val_ratio = round(len(ds.timestamp_list_train)/len(ds.timestamp_list_val))
-save_plot_loss_history(path_results, train_val_ratio=train_val_ratio, n=1000)
-
+#ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy') 
+#ds.timestamp_list_val = np.load(path_results+'data_timestamp_list_val.npy') 
+ds.read_timestamps_file('datasets/ais/interval_60sec/max_range1000/timestamps.npy')
+ds.split_list(split_frac = (1.0,0,0), shuffle_order=True)
 
 ae = Autoencoder(ds, path_results)
-ae.model = load_model(ae.path_results+'epoch01_batch000397_valloss0.0929.hdf5')
-ae.reconstruct(data = 'val', numb_of_timestamps=1, images_per_figure=12)
-
+ae.model = load_model('/home/kristoffer/Documents/mastersthesis/results/ex13/epoch00001_batch011700.hdf5')
+ae.test_inpainting(what_data='train', timestamp_index=0, numb_of_timestamps=1, epoch=0, batch=11699, inpainting_grid=(3,3))
 
 """
 
-ds = Dataset(cams_lenses = [(1,1),(3,1)])
+ds = Dataset(cams_lenses = [(3,1)])
 
 ds.read_timestamps_file('datasets/speed/interval_60sec/timestamps.npy')
 ds.split_list(split_frac = (0.9,0.1,0.0), shuffle_order=True)
 
 #path_prev = '/home/kristoffer/Documents/mastersthesis/results/ex12/' 
-path_results = '/home/kristoffer/Documents/mastersthesis/results/ex13/' 
+path_results = '/home/kristoffer/Documents/mastersthesis/results/ex14/' 
 #ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy') 
 #ds.timestamp_list_val = np.load(path_results+'data_timestamp_list_val.npy') 
 
