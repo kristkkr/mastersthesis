@@ -67,16 +67,19 @@ def save_plot_loss_history(path_results, train_val_ratio, n, single_im):
 
     plt.gca().yaxis.grid(True)
     plt.title('Loss during training')
-    plt.xlabel('Time [batch]')
-    plt.ylabel('Loss [MAE]')
+    if not single_im:
+        plt.xlabel('Time [batch]')
+    else:
+        plt.xlabel('Time [epoch]')
+    plt.ylabel('Loss')
     plt.savefig(path_results+'loss_history_avg_n'+str(n)+'.eps', format='eps')
     plt.close()
         
         
-def create_reconstruction_plot(masked_imgs, reconstructed_imgs):
-    fig_rows = 4
+def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inpainting_grid):
+    fig_rows = 5
     fig_columns = len(masked_imgs)
-    abs_err = np.empty((masked_imgs.shape[:3]))
+    error = np.empty((masked_imgs.shape[:3]))
     
     gs = gridspec.GridSpec(fig_rows, fig_columns)
     gs.update(wspace=0.02, hspace=0.02)
@@ -99,20 +102,27 @@ def create_reconstruction_plot(masked_imgs, reconstructed_imgs):
         
         # reconstruction error in grayscale
         """"
-        err0 = np.abs(reconstructed_imgs[i,:,:,0] - masked_imgs[0,:,:,0])
-        err1 = np.abs(reconstructed_imgs[i,:,:,1] - masked_imgs[0,:,:,1])
-        err2 = np.abs(reconstructed_imgs[i,:,:,2] - masked_imgs[0,:,:,2])
-        abs_err[i] = (err0+err1+err2)/3
+        err0 = np.square(reconstructed_imgs[i,:,:,0] - masked_imgs[0,:,:,0])
+        err1 = np.square(reconstructed_imgs[i,:,:,1] - masked_imgs[0,:,:,1])
+        err2 = np.square(reconstructed_imgs[i,:,:,2] - masked_imgs[0,:,:,2])
+        error[i] = (err0+err1+err2)/3
         """
-        abs_err[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], masked_imgs[0])), axis=2)
+        error[i] = np.mean(np.square(np.subtract(reconstructed_imgs[i], masked_imgs[0])), axis=2)
+        #print(np.amax(error))
         ax = plt.subplot(gs[i+2*fig_columns]) 
-        plt.imshow(abs_err[i], cmap='gray')
+        plt.imshow(error[i], cmap='gray')
         ax.axis('off')
         
-        abs_err_reconstructions = np.abs(np.subtract(abs_err[0], abs_err[i]))
+        error_reconstruction = np.square(np.subtract(error[0], error[i]))
         ax = plt.subplot(gs[i+3*fig_columns])
-        plt.imshow(abs_err_reconstructions, cmap='gray')
+        plt.imshow(error_reconstruction, cmap='gray')
         ax.axis('off')
+        
+        if i == 0:
+            inpainted = autoencoder.merge_inpaintings(reconstructed_imgs, inpainting_grid)
+            ax = plt.subplot(gs[i+4*fig_columns])
+            plt.imshow(inpainted, cmap='gray')            
+            
     #plt.subplots_adjust(wspace=0.02,hspace=0.02)
     
     plt.close(plot)

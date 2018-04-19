@@ -8,7 +8,7 @@ Created on Thu Feb  8 15:40:09 2018
 """
 import numpy as np
 
-from keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose, Lambda, LeakyReLU
+from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape
 from keras.models import Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, Callback
 from keras.backend import tf as ktf
@@ -85,6 +85,7 @@ class Autoencoder:
         conv_kernel_size = (4,4)
         conv_strides = (2)
         filters = [64, 64, 128, 256, 512, 4000]
+        #bottleneck = 8192
         
         input_image = Input(shape=self.dataset.IMAGE_SHAPE)
         x = Lambda(lambda image: ktf.image.resize_images(image, (128, 128)))(input_image)
@@ -109,13 +110,34 @@ class Autoencoder:
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)     
         
-        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size)(x)
-        x = LeakyReLU()(x)
+        #x = Flatten()(x)
+        #x = Dense(units=bottleneck)(x)
+        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size, activation=LeakyReLU())(x) #same as a dense layer
         x = BatchNormalization()(x)
+        #x = Reshape(target_shape=(4,4,512))(x)
         
+        x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size, strides=4, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)        
+        
+        x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)        
+
+        x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)        
+
+        x = Conv2DTranspose(filters=filters[1], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)        
+        
+        x = Conv2DTranspose(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
+        
+
         x = Lambda(lambda image: ktf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2]))(x)
+        
         autoencoder = Model(input_image, x)
-        autoencoder.compile(optimizer='adadelta', loss='mean_squared_error')
+        autoencoder.compile(optimizer='adam', loss='mean_squared_error')
     
         self.model = autoencoder        
         
@@ -219,14 +241,7 @@ class Autoencoder:
                 
                 ### TRAIN
                 x_batch_masked, x_batch = ds.mask_image(x[0], inpainting_grid)
-                """
-                x_batch_masked = ds.mask_image(x, inpainting_grid)
-                orignial_im = x_batch_masked[0]
-                x_batch_masked = x_batch_masked[1:batch_size+1]
-                x_batch = np.empty(x_batch_masked.shape)
-                for i in range(batch_size):
-                    x_batch[i] = orignial_im
-                """
+
                 loss = self.model.train_on_batch(x_batch_masked, x_batch)
                 ###
                 loss_history.on_train_batch_end(loss)
@@ -242,14 +257,7 @@ class Autoencoder:
                     if x == []:
                         continue
                     x_batch_masked, x_batch = ds.mask_image(x[0], inpainting_grid)
-                    """
-                    x_batch_masked = ds.mask_image(x, inpainting_grid)
-                    orignial_im = x_batch_masked[0]
-                    x_batch_masked = x_batch_masked[1:batch_size+1]
-                    x_batch = np.empty(x_batch_masked.shape)
-                    for i in range(batch_size):
-                        x_batch[i] = orignial_im
-                    """
+
                     loss = self.model.test_on_batch(x_batch_masked, x_batch)
                     loss_history.on_val_batch_end(loss)                    
                     print('Validate loss: '+str(loss))    
@@ -257,7 +265,7 @@ class Autoencoder:
                     val_batch += 1
                     val_timestamp_index += 1
                     
-                save_to_directory(self, loss_history, failed_im_load, epoch, train_batch, val_timestamp_index, train_val_ratio, model_freq=100*train_val_ratio, loss_freq=train_val_ratio, reconstruct_freq=10*train_val_ratio, n_move_avg=1, inpainting_grid=inpainting_grid, single_im=single_im)
+                save_to_directory(self, loss_history, failed_im_load, epoch, train_batch, val_timestamp_index, train_val_ratio, model_freq=1*train_val_ratio, loss_freq=train_val_ratio, reconstruct_freq=1*train_val_ratio, n_move_avg=1, inpainting_grid=inpainting_grid, single_im=single_im)
                 
                     
 
@@ -305,8 +313,6 @@ class Autoencoder:
         else:
             print('Invalid data argument, no reconstruction possible.')
         
-                    
-        
         for i in range(numb_of_timestamps):
             x,failed_im_load = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
             
@@ -316,36 +322,47 @@ class Autoencoder:
             
                 x_batch_original_and_masked = np.concatenate((np.expand_dims(x_batch[0], axis=0), x_batch_masked), axis=0)
                 y_batch = self.model.predict_on_batch(x_batch_original_and_masked)
-                plot = create_reconstruction_plot(x_batch_original_and_masked, y_batch)
+                plot = create_reconstruction_plot(self, x_batch_original_and_masked, y_batch, inpainting_grid)
                 plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data+str(i+1)+'img'+str(image+1)+'.jpg')
                 print('Reconstruction saved')
             
     
-    def reconstruct_inpainting(self, x_batch_masked, inpainting_grid):
+    def merge_inpaintings(self, y_batch, inpainting_grid):
         """
-        Reconstructs and inpaints 'x_batch_masked' and merges output to a single image. NOT TESTED
+        Merges inpatinings in 'y_batch' to a single image. ish tested
         """
-        y_batch = self.model.predict_on_batch(x_batch_masked)
-
+        #y_batch = self.model.predict_on_batch(x_batch_masked)
+        #print(y_batch.shape)
         mask_shape = (self.dataset.IMAGE_SHAPE[0]//inpainting_grid[0], self.dataset.IMAGE_SHAPE[1]//inpainting_grid[1])
-        
+        #print(mask_shape)
         inpainted = np.empty(self.dataset.IMAGE_SHAPE)
         
-        ulc = (0,0) # upper left corner coordinates
-        i = 0
+        #ulc = (0,0) # upper left corner coordinates
+        x0, y0 = 0,0
+        i = 1
                         
         for x in range(inpainting_grid[0]):
+            x = x*mask_shape[1]
             for y in range(inpainting_grid[1]):
-                rectangle_coordinates = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
+                #rectangle_coordinates = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
+                y = y*mask_shape[0]
+                #print(y,x)
+                #inpaint = y_batch[i][y0:y0+mask_shape[0]][x0:x0+mask_shape[1]]
+                #print(inpaint.shape)
+                #inpainted[rectangle_coordinates[0][0]:rectangle_coordinates[1][0], rectangle_coordinates[0][1]:rectangle_coordinates[1][1]] = y_batch[i][rectangle_coordinates[0][0]:rectangle_coordinates[1][0], rectangle_coordinates[0][1]:rectangle_coordinates[1][1]]
                 
-                inpainted[rectangle_coordinates[0,0]:rectangle_coordinates[1,0], rectangle_coordinates[0,1]:rectangle_coordinates[1,1]] = y_batch[i][rectangle_coordinates[0,0]:rectangle_coordinates[1,0], rectangle_coordinates[0,1]:rectangle_coordinates[1,1]]
+                inpainted[y:y+mask_shape[0],x:x+mask_shape[1]] = y_batch[i,y:y+mask_shape[0],x:x+mask_shape[1]]
+                #print(inpaint.shape)                
+                
                 i += 1
-                                
-                ulc = (ulc[0],ulc[1]+mask_shape[0])
-            ulc = (ulc[0]+mask_shape[1],0)
+                
+                y0 = y0 + mask_shape[0]
+                #ulc = (ulc[0],ulc[1]+mask_shape[0])
+            x0 = x0 + mask_shape[1]
+            #ulc = (ulc[0]+mask_shape[1],0)
         
         return inpainted
-
+        
 class LossHistory(Callback):
     def on_train_begin(self, path_results, log={}):
         try:
