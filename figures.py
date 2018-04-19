@@ -36,7 +36,7 @@ def save_to_directory(autoencoder, loss_history, failed_im_load, epoch, batch,ti
             print('Timestamps and cam_lens of failed batches:\n{}'.format(failed_im_load), file=text)
 
     if (freq_counter+1)%model_freq == 0: 
-        autoencoder.model.save(autoencoder.path_results+'epoch'+epoch_str+'_batch'+batch_str+'.hdf5')
+        autoencoder.model.save_weights(autoencoder.path_results+'epoch'+epoch_str+'_batch'+batch_str+'.hdf5')
         print('Model saved')
     if (freq_counter+1)%reconstruct_freq == 0: 
         autoencoder.test_inpainting(what_data='val', timestamp_index=timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)

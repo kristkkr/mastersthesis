@@ -40,7 +40,7 @@ ds.read_timestamps_file('datasets/speed/interval_60sec/timestamps.npy')
 ds.split_list(split_frac = (0.9,0.1,0.0), shuffle_order=True)
 
 #path_prev = '/home/kristoffer/Documents/mastersthesis/results/ex12/' 
-path_results = '/home/kristoffer/Documents/mastersthesis/results/ex16/' 
+path_results = '/home/kristoffer/Documents/mastersthesis/results/ex17/' 
 #ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy') 
 #ds.timestamp_list_val = np.load(path_results+'data_timestamp_list_val.npy') 
 

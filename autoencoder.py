@@ -112,7 +112,8 @@ class Autoencoder:
         
         #x = Flatten()(x)
         #x = Dense(units=bottleneck)(x)
-        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size, activation=LeakyReLU())(x) #same as a dense layer
+        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size)(x) #same as a dense layer
+        x = LeakyReLU()(x)
         x = BatchNormalization()(x)
         #x = Reshape(target_shape=(4,4,512))(x)
         
@@ -265,7 +266,7 @@ class Autoencoder:
                     val_batch += 1
                     val_timestamp_index += 1
                     
-                save_to_directory(self, loss_history, failed_im_load, epoch, train_batch, val_timestamp_index, train_val_ratio, model_freq=1*train_val_ratio, loss_freq=train_val_ratio, reconstruct_freq=1*train_val_ratio, n_move_avg=1, inpainting_grid=inpainting_grid, single_im=single_im)
+                save_to_directory(self, loss_history, failed_im_load, epoch, train_batch, val_timestamp_index, train_val_ratio, model_freq=100*train_val_ratio, loss_freq=train_val_ratio, reconstruct_freq=10*train_val_ratio, n_move_avg=1, inpainting_grid=inpainting_grid, single_im=single_im)
                 
                     
 
