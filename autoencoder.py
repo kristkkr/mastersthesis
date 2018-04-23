@@ -9,22 +9,17 @@ Created on Thu Feb  8 15:40:09 2018
 import numpy as np
 
 from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape
-from keras.models import Model
+from keras.models import Model, Sequential
 from keras.callbacks import Callback#, EarlyStopping, ModelCheckpoint, TensorBoard
-from keras.backend import tf as ktf
+from keras.backend import tf
 
 from figures import create_reconstruction_plot, plot_loss_history, insert_leading_zeros
 
+class AutoencoderModel:
 
-class Autoencoder:
-    def __init__(self, dataset, path_results, dataset_reconstruct=None): 
-        #self.input_shape = dataset.IMAGE_SHAPE
-        self.model = None #self.create_model()
-        self.path_results = path_results
-        self.dataset = dataset # datasets train and val for training and train+val loss
-        self.dataset_reconstruct = dataset_reconstruct # dataset val for validation/reconstruction during training.
-            
-    def create_model(self):
+    IMAGE_SHAPE = (1920,2560,3)
+
+    def create_fca(self):
         
         # conv layer parameters
         conv_kernel_size1 = 5
@@ -35,7 +30,7 @@ class Autoencoder:
         #filters = [2**n for n in range(3,16)] 
         filters = [8, 8*3, 8*3**2, 8*3**3, 8*3**4, 8*3**5, 8*3**6]
         
-        input_image = Input(shape=self.dataset.IMAGE_SHAPE) 
+        input_image = Input(shape=self.IMAGE_SHAPE) 
         
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(input_image)
         x = LeakyReLU()(x)
@@ -80,7 +75,7 @@ class Autoencoder:
     
         self.model = autoencoder
     
-    def create_ContextEncoder_model(self):
+    def create_context_encoder(self):
         """
         Model from the paper Context Encoders.
         """
@@ -90,8 +85,8 @@ class Autoencoder:
         filters = [128, 256, 512, 1024, 2096, 4192]
         #bottleneck = 8192
         
-        input_image = Input(shape=self.dataset.IMAGE_SHAPE)
-        x = Lambda(lambda image: ktf.image.resize_images(image, resized_shape))(input_image)
+        input_image = Input(shape=self.IMAGE_SHAPE)
+        x = Lambda(lambda image: tf.image.resize_images(image, resized_shape))(input_image)
 
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
@@ -121,16 +116,11 @@ class Autoencoder:
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)     
         
-        #x = Flatten()(x)
-        #x = Dense(units=bottleneck)(x)
-        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size)(x) #same as a dense layer
+        """
+        x = Lambda(self.channel_wise_dense_layer_tensorflow, arguments={'name': "channelwisedense"})(x)
         x = LeakyReLU()(x)
-        x = BatchNormalization()(x)
-        #x = Reshape(target_shape=(4,4,512))(x)
-        
-        x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size, strides=1, activation = 'relu')(x)
-        x = BatchNormalization()(x)        
-        
+        x = BatchNormalization()(x)   
+        """
         x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)   
         
@@ -152,13 +142,46 @@ class Autoencoder:
         x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
         
 
-        x = Lambda(lambda image: ktf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2]))(x)
+        x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2]))(x)
         
         autoencoder = Model(input_image, x)
         autoencoder.compile(optimizer='adam', loss='mean_squared_error')
     
         self.model = autoencoder        
+   
+
+    def channel_wise_dense_layer_tensorflow(self, x, name): # bottom: (7x7x512)
+        """ 
+        Based on Context Encoder. Implementation in TensorFlow.
+        """
+        _, height, width, n_feat_map = x.get_shape().as_list()
+        input_reshape = tf.reshape( x, [-1, width*height, n_feat_map] )
+        input_transpose = tf.transpose( input_reshape, [2,0,1] )
+        print(input_transpose.shape)
+        with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
+            W = tf.get_variable(
+                    "W",
+                    shape=[n_feat_map,width*height, width*height], # (512,49,49)
+                    initializer=tf.random_normal_initializer(0., 0.005))
+            output = tf.matmul(input_transpose, W)
         
+        output_transpose = tf.transpose(output, [1,2,0])
+        output_reshape = tf.reshape( output_transpose, [-1, height, width, n_feat_map] )
+
+        return output_reshape
+    
+    
+    
+   
+class Autoencoder(AutoencoderModel):
+    def __init__(self, dataset, path_results, dataset_reconstruct=None): 
+        #self.input_shape = dataset.IMAGE_SHAPE
+        self.model = None #self.create_model()
+        self.path_results = path_results
+        self.dataset = dataset # datasets train and val for training and train+val loss
+        self.dataset_reconstruct = dataset_reconstruct # dataset val for validation/reconstruction during training.
+            
+         
         
     def train(self, epochs, batch_size): #val_split
         """
@@ -385,36 +408,26 @@ class Autoencoder:
         """
         Merges inpatinings in 'y_batch' to a single image. ish tested
         """
-        #y_batch = self.model.predict_on_batch(x_batch_masked)
-        #print(y_batch.shape)
         mask_shape = (self.dataset.IMAGE_SHAPE[0]//inpainting_grid[0], self.dataset.IMAGE_SHAPE[1]//inpainting_grid[1])
-        #print(mask_shape)
+
         inpainted = np.empty(self.dataset.IMAGE_SHAPE)
         
-        #ulc = (0,0) # upper left corner coordinates
         x0, y0 = 0,0
         i = 1
                         
         for x in range(inpainting_grid[1]):
             x = x*mask_shape[1]
             for y in range(inpainting_grid[0]):
-                #rectangle_coordinates = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
                 y = y*mask_shape[0]
-                #print(y,x)
-                #inpaint = y_batch[i][y0:y0+mask_shape[0]][x0:x0+mask_shape[1]]
-                #print(inpaint.shape)
-                #inpainted[rectangle_coordinates[0][0]:rectangle_coordinates[1][0], rectangle_coordinates[0][1]:rectangle_coordinates[1][1]] = y_batch[i][rectangle_coordinates[0][0]:rectangle_coordinates[1][0], rectangle_coordinates[0][1]:rectangle_coordinates[1][1]]
                 
                 inpainted[y:y+mask_shape[0],x:x+mask_shape[1]] = y_batch[i,y:y+mask_shape[0],x:x+mask_shape[1]]
-                #print(inpaint.shape)                
                 
                 i += 1
                 
                 y0 = y0 + mask_shape[0]
-                #ulc = (ulc[0],ulc[1]+mask_shape[0])
+
             x0 = x0 + mask_shape[1]
-            #ulc = (ulc[0]+mask_shape[1],0)
-        
+            
         return inpainted
         
 class LossHistory(Callback):
