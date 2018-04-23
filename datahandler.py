@@ -128,8 +128,8 @@ class Dataset():
                     print(timestamp)
                     
 
-            #if len(self.timestamp_list)%10 == 0:
-            #    print(len(self.timestamp_list))
+            if len(self.timestamp_list)%10 == 0:
+                print(len(self.timestamp_list))
         
                     
         print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))
@@ -284,13 +284,13 @@ if __name__ == "__main__":
     
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/speed/interval_60sec/'
+    ds.path_timestamps = 'datasets/speed/speed>0.5/interval_60sec/'
     ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
-    #ds.select_subset(min_speed=6)
+#    ds.select_subset(min_speed=0.5)
     ds.select_subset(targets_ais_min=1, max_range=1000)
     
-    ds.write_timestamps_file('datasets/ais/interval_60sec/timestamps')
+    ds.write_timestamps_file('datasets/ais/speed>0.5/interval_60sec/timestamps')
     
     
     

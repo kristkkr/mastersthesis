@@ -18,11 +18,11 @@ from autoencoder import Autoencoder
 
 from figures import plot_loss_history
 # initialize model
-"""
-ds = Dataset([(0,1)]) #[(1,1),(3,1)])
-path_results = '/home/kristoffer/Documents/mastersthesis/results/ex18/'
-plot_loss_history(path_results, train_val_ratio=9, n=10, single_im=False)
 
+ds = Dataset([(0,1)]) #[(1,1),(3,1)])
+path_results = '/home/kristoffer/Documents/mastersthesis/results/ex21/'
+plot_loss_history(path_results, train_val_ratio=9, n=500, single_im=False)
+"""
 #ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy') 
 #ds.timestamp_list_val = np.load(path_results+'data_timestamp_list_val.npy') 
 ds.read_timestamps_file('datasets/ais/interval_60sec/max_range1000/timestamps.npy')
@@ -31,7 +31,7 @@ ds.split_list(split_frac = (1.0,0,0), shuffle_order=False)
 ae = Autoencoder(ds, path_results)
 ae.model = load_model('/home/kristoffer/Documents/mastersthesis/results/ex15/epoch00001_batch009000.hdf5')
 ae.test_inpainting(what_data='train', timestamp_index=0, numb_of_timestamps=1, epoch=0, batch=8999, inpainting_grid=(3,4))
-"""
+
 
 
 ds_train = Dataset(cams_lenses = [(3,1)]) #(1,1)
@@ -40,7 +40,7 @@ ds_train.split_list(split_frac = (0.9,0.1,0.0), shuffle_order=True)
 
 
 #path_prev = '/home/kristoffer/Documents/mastersthesis/results/ex17/' 
-path_results = '/home/kristoffer/Documents/mastersthesis/results/ex19/' 
+path_results = '/home/kristoffer/Documents/mastersthesis/results/ex21/' 
 #ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy') 
 #ds.timestamp_list_val = np.load(path_results+'data_timestamp_list_val.npy') 
 
@@ -52,15 +52,15 @@ ds_val.timestamp_list_val = [dl.get_time_from_basename('/nas0/2018-01-18/2018-01
 
 
 ae = Autoencoder(ds_train, path_results, ds_val)
-ae.create_model()
+ae.create_ContextEncoder_model()
 #ae.model.load_weights(path_prev+'epoch00001_batch010800.hdf5')
 #ae.model = load_model(path_prev+'epoch00300_batch000001.hdf5')
 ae.model.summary()
 
 # experiment
 epochs = 1
-batch_size = 9
-inpaining_grid = (3,3)
+batch_size = 12
+inpaining_grid = (3,4)
 
 ae.train_inpainting(epochs, batch_size, inpaining_grid, single_im=False)
-
+"""

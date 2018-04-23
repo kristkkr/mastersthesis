@@ -30,32 +30,35 @@ class Autoencoder:
         conv_kernel_size1 = 5
         conv_strides0 = 1
         conv_strides1 = 2
-        conv_strides2 = (3,2)
-        conv_strides3 = (1,2)
-        
+                        
         #filters = [8,16,32,64,128,256,512,1024] 
         #filters = [2**n for n in range(3,16)] 
-        filters = [8, 8*3, 8*3**2, 8*3**3, 8*3**4, 8*3**5]
+        filters = [8, 8*3, 8*3**2, 8*3**3, 8*3**4, 8*3**5, 8*3**6]
         
-        input_image = Input(shape=self.dataset.IMAGE_SHAPE) # change to ds.IMAGE_SHAPE?
+        input_image = Input(shape=self.dataset.IMAGE_SHAPE) 
         
-        x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(input_image)
+        x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(input_image)
+        x = LeakyReLU()(x)
         x = BatchNormalization()(x)
-        x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
+        x = LeakyReLU()(x)
         x = BatchNormalization()(x)
-        x = Conv2D(filters=filters[2], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = Conv2D(filters=filters[2], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
+        x = LeakyReLU()(x)
         x = BatchNormalization()(x)
-        x = Conv2D(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = Conv2D(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
+        x = LeakyReLU()(x)
         x = BatchNormalization()(x)   
-
-        x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
+        x = LeakyReLU()(x)
         x = BatchNormalization()(x)           
         """        
-        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
+        x = LeakyReLU()(x)
         x = BatchNormalization()(x)   
-        x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
+        x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
+        x = LeakyReLU()(x)
         x = BatchNormalization()(x)  
-        
         ### BOTTLENECK ###            
         x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)
@@ -81,10 +84,10 @@ class Autoencoder:
         """
         Model from the paper Context Encoders.
         """
-        resized_shape = (128, 192)
+        resized_shape = (192, 256)
         conv_kernel_size = (4,4)
         conv_strides = (2)
-        filters = [ 64, 128, 256, 512, 1024, 4000]
+        filters = [128, 256, 512, 1024, 2096, 4192]
         #bottleneck = 8192
         
         input_image = Input(shape=self.dataset.IMAGE_SHAPE)
@@ -109,8 +112,15 @@ class Autoencoder:
         x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)     
-        
         """
+        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)      
+        
+        x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)     
+        
         #x = Flatten()(x)
         #x = Dense(units=bottleneck)(x)
         x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size)(x) #same as a dense layer
@@ -120,6 +130,12 @@ class Autoencoder:
         
         x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size, strides=1, activation = 'relu')(x)
         x = BatchNormalization()(x)        
+        
+        x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)   
+        
+        x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)   
         """
         x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)        
@@ -301,7 +317,7 @@ class Autoencoder:
             
         if (freq_counter+1)%reconstruct_freq == 0: 
             self.test_inpainting(dataset = self.dataset_reconstruct, what_data_split='val', timestamp_index=0, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
-        if (freq_counter+1)%reconstruct_freq*10 == 0: 
+        if (freq_counter+1)%(reconstruct_freq*10) == 0: 
             self.test_inpainting(dataset = self.dataset_reconstruct, what_data_split='train', timestamp_index=timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)    
 
     def test(self, what_data, numb_of_timestamps, epoch, batch):
