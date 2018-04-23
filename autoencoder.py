@@ -79,10 +79,10 @@ class AutoencoderModel:
         """
         Model from the paper Context Encoders.
         """
-        resized_shape = (192, 256)
-        conv_kernel_size = (4,4)
-        conv_strides = (2)
-        filters = [128, 256, 512, 1024, 2096, 4192]
+        resized_shape = (384, 512)
+        conv_kernel_size = 5 #(4,4)
+        conv_strides = 2
+        filters = [128, 256, 512, 1024, 2096, 4192] #64, 128, 
         #bottleneck = 8192
         
         input_image = Input(shape=self.IMAGE_SHAPE)
@@ -103,7 +103,7 @@ class AutoencoderModel:
         x = Conv2D(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)
-
+        
         x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)     
@@ -129,7 +129,7 @@ class AutoencoderModel:
         """
         x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)        
-
+        
         x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
         x = BatchNormalization()(x)        
 
@@ -152,12 +152,12 @@ class AutoencoderModel:
 
     def channel_wise_dense_layer_tensorflow(self, x, name): # bottom: (7x7x512)
         """ 
-        Based on Context Encoder. Implementation in TensorFlow.
+        Based on Context Encoder implementation in TensorFlow.
         """
         _, height, width, n_feat_map = x.get_shape().as_list()
         input_reshape = tf.reshape( x, [-1, width*height, n_feat_map] )
         input_transpose = tf.transpose( input_reshape, [2,0,1] )
-        print(input_transpose.shape)
+        
         with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
             W = tf.get_variable(
                     "W",
@@ -170,18 +170,14 @@ class AutoencoderModel:
 
         return output_reshape
     
-    
-    
    
 class Autoencoder(AutoencoderModel):
-    def __init__(self, dataset, path_results, dataset_reconstruct=None): 
+    def __init__(self, dataset, path_results, dataset_reconstruct): 
         #self.input_shape = dataset.IMAGE_SHAPE
         self.model = None #self.create_model()
         self.path_results = path_results
         self.dataset = dataset # datasets train and val for training and train+val loss
         self.dataset_reconstruct = dataset_reconstruct # dataset val for validation/reconstruction during training.
-            
-         
         
     def train(self, epochs, batch_size): #val_split
         """
@@ -283,6 +279,7 @@ class Autoencoder(AutoencoderModel):
                 
                 ### TRAIN
                 x_batch_masked, x_batch = ds.mask_image(x[0], inpainting_grid)
+                x_batch_inverse_masked = x_batch-x_batch_masked
 
                 loss = self.model.train_on_batch(x_batch_masked, x_batch)
                 ###
@@ -299,6 +296,7 @@ class Autoencoder(AutoencoderModel):
                     if x == []:
                         continue
                     x_batch_masked, x_batch = ds.mask_image(x[0], inpainting_grid)
+                    x_batch_inverse_masked = x_batch-x_batch_masked
 
                     loss = self.model.test_on_batch(x_batch_masked, x_batch)
                     loss_history.on_val_batch_end(loss)                    
@@ -313,7 +311,6 @@ class Autoencoder(AutoencoderModel):
         """
         Saves results to directory during training.
         """
-            
         epoch_str = insert_leading_zeros(epoch+1,5)
         batch_str = insert_leading_zeros(batch+1,6)
         
@@ -340,6 +337,7 @@ class Autoencoder(AutoencoderModel):
             
         if (freq_counter+1)%reconstruct_freq == 0: 
             self.test_inpainting(dataset = self.dataset_reconstruct, what_data_split='val', timestamp_index=0, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
+        
         if (freq_counter+1)%(reconstruct_freq*10) == 0: 
             self.test_inpainting(dataset = self.dataset_reconstruct, what_data_split='train', timestamp_index=timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)    
 

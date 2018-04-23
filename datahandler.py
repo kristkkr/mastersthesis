@@ -190,7 +190,7 @@ class Dataset():
     
     def mask_image(self, image, grid): #rows, columns):
         """
-        Returns a numpy array of size rows*columns+1 containing the original and masked versions of the argument image
+        Returns two numpy arrays of size rows*columns containing the masked and original and versions of the argument image
         """
                 
         rows, columns = grid
@@ -201,7 +201,6 @@ class Dataset():
         mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
         ulc = (0,0) # upper left corner coordinates
         
-        #masked_images[0] = image*255
         i = 0
                         
         for x in range(columns):
