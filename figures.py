@@ -15,7 +15,7 @@ from PIL import Image
 from keras.preprocessing.image import ImageDataGenerator
 
 
-def plot_loss_history(path_results, train_val_ratio, n, single_im):
+def plot_loss_history(path_results, train_val_ratio, single_im, n):
     """
     Saves a plot of loss history for in 'path_'results with a 'n' moving average.
     """
@@ -47,8 +47,12 @@ def plot_loss_history(path_results, train_val_ratio, n, single_im):
     plt.close()
         
         
-def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inpainting_grid):
-    fig_rows = 5
+def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inpainting_grid=None):
+    
+    fig_rows = 3
+    if not inpainting_grid==None: 
+        fig_rows +=2
+    
     fig_columns = len(masked_imgs)
     error = np.empty((masked_imgs.shape[:3]))
     
@@ -72,20 +76,21 @@ def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inp
         ax.axis('off')        
         
         # reconstruction error in grayscale
-        error[i] = np.mean(np.square(np.subtract(reconstructed_imgs[i], masked_imgs[0])), axis=2)
+        error[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], masked_imgs[0])), axis=2)
         ax = plt.subplot(gs[i+2*fig_columns]) 
         plt.imshow(error[i], cmap='gray')
         ax.axis('off')
         
-        error_reconstruction = np.square(np.subtract(error[0], error[i]))
-        ax = plt.subplot(gs[i+3*fig_columns])
-        plt.imshow(error_reconstruction, cmap='gray')
-        ax.axis('off')
-        
-        if i == 0:
-            inpainted = autoencoder.merge_inpaintings(reconstructed_imgs, inpainting_grid)
-            ax = plt.subplot(gs[i+4*fig_columns])
-            plt.imshow(inpainted, cmap='gray')            
+        if not inpainting_grid==None:
+            error_reconstruction = np.abs(np.subtract(error[0], error[i]))
+            ax = plt.subplot(gs[i+3*fig_columns])
+            plt.imshow(error_reconstruction, cmap='gray')
+            ax.axis('off')
+            
+            if i == 0:
+                inpainted = autoencoder.merge_inpaintings(reconstructed_imgs, inpainting_grid)
+                ax = plt.subplot(gs[i+4*fig_columns])
+                plt.imshow(inpainted, cmap='gray')            
             
     #plt.subplots_adjust(wspace=0.02,hspace=0.02)
     
