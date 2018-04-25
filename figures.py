@@ -47,14 +47,14 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n):
     plt.close()
         
         
-def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inpainting_grid=None):
+def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inpainting_grid):
     
     fig_rows = 3
     if not inpainting_grid==None: 
         fig_rows +=2
     
     fig_columns = len(masked_imgs)
-    error = np.empty((masked_imgs.shape[:3]))
+    residual = np.empty((masked_imgs.shape[:3]))
     
     gs = gridspec.GridSpec(fig_rows, fig_columns)
     gs.update(wspace=0.02, hspace=0.02)
@@ -75,16 +75,19 @@ def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inp
         plt.imshow(reconstructed_imgs[i])
         ax.axis('off')        
         
-        # reconstruction error in grayscale
-        error[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], masked_imgs[0])), axis=2)
+        # reconstruction residual in grayscale
+        if not inpainting_grid==None:
+            residual[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], masked_imgs[0])), axis=2)
+        else:
+            residual[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], masked_imgs[i])), axis=2)
         ax = plt.subplot(gs[i+2*fig_columns]) 
-        plt.imshow(error[i], cmap='gray')
+        plt.imshow(residual[i], cmap='gray')
         ax.axis('off')
         
         if not inpainting_grid==None:
-            error_reconstruction = np.abs(np.subtract(error[0], error[i]))
+            residual_reconstruction = np.abs(np.subtract(residual[0], residual[i]))
             ax = plt.subplot(gs[i+3*fig_columns])
-            plt.imshow(error_reconstruction, cmap='gray')
+            plt.imshow(residual_reconstruction, cmap='gray')
             ax.axis('off')
             
             if i == 0:

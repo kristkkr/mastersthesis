@@ -196,6 +196,8 @@ class Dataset():
         rows, columns = grid
         #image = image[0]
         original_image_batch = np.empty((rows*columns,)+ self.IMAGE_SHAPE)
+        
+        # return mask_batch(original_image_batch, grid)
         masked_images = np.copy(original_image_batch)
                  
         mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
@@ -218,6 +220,9 @@ class Dataset():
             ulc = (ulc[0]+mask_shape[1],0)
         
         return masked_images.astype('float32') / 255., original_image_batch # remove cast and scale
+    
+    def mask_batch(self, batch, grid):
+        pass
         
         
         
