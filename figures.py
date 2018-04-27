@@ -47,9 +47,50 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n):
     plt.close()
         
         
-def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inpainting_grid):
+def create_reconstruction_plot(autoencoder, original_imgs, masked_imgs, reconstructed_imgs):
     
-    fig_rows = 3
+    fig_rows = 4
+    fig_columns = len(masked_imgs)
+    residual = np.empty((masked_imgs.shape[:3]))
+    
+    gs = gridspec.GridSpec(fig_rows, fig_columns)
+    gs.update(wspace=0.02, hspace=0.02)
+    scale=80
+    plot = plt.figure(figsize=(2560*fig_columns//scale,1920*fig_rows//scale))
+    for i in range(fig_columns):
+
+        # display original and masked
+        ax = plt.subplot(gs[i])#fig_rows, fig_columns, i + 1)
+        try:
+            plt.imshow(original_imgs[i])
+        except:
+            continue
+        ax.axis('off')  
+        
+        ax = plt.subplot(gs[i+fig_columns]) 
+        plt.imshow(masked_imgs[i])
+        ax.axis('off')        
+        
+        # display reconstructions
+        ax = plt.subplot(gs[i+2*fig_columns]) 
+        plt.imshow(reconstructed_imgs[i])
+        ax.axis('off')        
+        
+        # reconstruction residual in grayscale
+        residual = np.mean(np.abs(np.subtract(reconstructed_imgs[i], original_imgs[i])), axis=2)
+        ax = plt.subplot(gs[i+3*fig_columns]) 
+        plt.imshow(residual, cmap='gray')
+        ax.axis('off')
+        
+    #plt.subplots_adjust(wspace=0.02,hspace=0.02)
+    
+    plt.close(plot)
+    return plot
+
+def create_reconstruction_plot_single_image(autoencoder, original_imgs, masked_imgs, reconstructed_imgs, inpainting_grid):
+    """ not finished """
+    
+    fig_rows = 4
     if not inpainting_grid==None: 
         fig_rows +=2
     
@@ -65,13 +106,18 @@ def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inp
         # display original and masked
         ax = plt.subplot(gs[i])#fig_rows, fig_columns, i + 1)
         try:
-            plt.imshow(masked_imgs[i])
+            plt.imshow(original_imgs[i])
         except:
             continue
         ax.axis('off')  
         
-        # display reconstructions
         ax = plt.subplot(gs[i+fig_columns]) 
+        plt.imshow(masked_imgs[i])
+        ax.axis('off')        
+        
+        
+        # display reconstructions
+        ax = plt.subplot(gs[i+2*fig_columns]) 
         plt.imshow(reconstructed_imgs[i])
         ax.axis('off')        
         
@@ -79,20 +125,20 @@ def create_reconstruction_plot(autoencoder, masked_imgs, reconstructed_imgs, inp
         if not inpainting_grid==None:
             residual[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], masked_imgs[0])), axis=2)
         else:
-            residual[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], masked_imgs[i])), axis=2)
-        ax = plt.subplot(gs[i+2*fig_columns]) 
+            residual[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], original_imgs[i])), axis=2)
+        ax = plt.subplot(gs[i+3*fig_columns]) 
         plt.imshow(residual[i], cmap='gray')
         ax.axis('off')
         
         if not inpainting_grid==None:
             residual_reconstruction = np.abs(np.subtract(residual[0], residual[i]))
-            ax = plt.subplot(gs[i+3*fig_columns])
+            ax = plt.subplot(gs[i+4*fig_columns])
             plt.imshow(residual_reconstruction, cmap='gray')
             ax.axis('off')
             
             if i == 0:
                 inpainted = autoencoder.merge_inpaintings(reconstructed_imgs, inpainting_grid)
-                ax = plt.subplot(gs[i+4*fig_columns])
+                ax = plt.subplot(gs[i+5*fig_columns])
                 plt.imshow(inpainted, cmap='gray')            
             
     #plt.subplots_adjust(wspace=0.02,hspace=0.02)

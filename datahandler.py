@@ -4,19 +4,16 @@
 Created on Thu Feb  1 16:02:43 2018
 
 @author: kristoffer
-self.hour_list seems to be wrong
-
 """
 
 import sys
 import os
 import itertools
-import pickle
-import datetime
-import json
+#import datetime
 
 import numpy as np
 import seaborn as sns
+import pandas as pd
 from PIL import Image, ImageDraw
 from random import shuffle
 import matplotlib.pyplot as plt
@@ -34,9 +31,6 @@ class Dataset():
     def __init__(self, cams_lenses):
         self.path = '/nas0/'
         self.path_timestamps = None
-        self.sampling_interval = 1
-        #self.date_list = []
-        self.hour_list = [] 
         self.timestamp_list = []
         #self.timestamp_list_shuffled = []
         self.timestamp_list_train = []
@@ -59,13 +53,12 @@ class Dataset():
         Bad method in most ways, but needs only to be run once every time the entire dataset is updated.
         """
         
-        self.date_list = sorted([date for date in os.listdir(self.path) if '201' in date]) # not used
-        self.hour_list = sorted([hour for date in os.listdir(self.path) if '201' in date for hour in os.listdir(self.path+date) if '201' in hour])
+        hour_list = sorted([hour for date in os.listdir(self.path) if '201' in date for hour in os.listdir(self.path+date) if '201' in hour])
         #self.timestamp_list = sorted([timestamp for date in os.listdir(self.path) if '201' in date for hour in os.listdir(self.path+date) if '201' in hour for timestamp in os.listdir(self.path+date+'/'+hour+'/Cam0/Lens0') if '.jpg' in timestamp])
-        print('Lenght of hour_list: '+str(len(self.hour_list)))
+        print('Lenght of hour_list: '+str(len(hour_list)))
                 
         dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
-        for hour in self.hour_list:
+        for hour in hour_list:
             try:
                 timestamps_in_hour = sorted([name[:19] for name in os.listdir(self.path+hour[:10]+'/'+hour+'/Cam0/Lens0') if '.jpg' in name]) # time_list contains filename strings
                 
@@ -192,12 +185,15 @@ class Dataset():
         """
         Returns two numpy arrays of size rows*columns containing the masked and original and versions of the argument image
         """
-                
-        rows, columns = grid
-        #image = image[0]
-        original_image_batch = np.empty((rows*columns,)+ self.IMAGE_SHAPE)
+        #rows, columns = grid
         
-        # return mask_batch(original_image_batch, grid)
+        original_image_batch = np.empty((np.prod(grid),)+ self.IMAGE_SHAPE)
+        for i in range(len(original_image_batch)):
+            original_image_batch[i] = image
+        
+        return self.mask_batch(original_image_batch, grid)
+    
+        """
         masked_images = np.copy(original_image_batch)
                  
         mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
@@ -220,9 +216,35 @@ class Dataset():
             ulc = (ulc[0]+mask_shape[1],0)
         
         return masked_images.astype('float32') / 255., original_image_batch # remove cast and scale
-    
+        """
     def mask_batch(self, batch, grid):
-        pass
+        """
+        Mask a 'batch' with 'grid'. In some cases, len(batch)< prod(grid) since cam_lens(1,1) is missing. this leads to unbalanced batches of masks, but should not be a too large problem.
+        """
+        rows, columns = grid 
+        
+        masked_batch = np.copy(batch)
+        mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
+        ulc = (0,0) # upper left corner coordinates
+        
+        i = 0
+                        
+        for x in range(columns):
+            for y in range(rows):
+                try:
+                    rectangle_coordinates = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
+                    im = Image.fromarray(np.uint8(batch[i]*255),'RGB') # remove scaleing
+                    draw = ImageDraw.Draw(im)
+                    draw.rectangle(rectangle_coordinates,fill=0)
+                    masked_batch[i] = np.asarray(im, dtype=np.uint8)
+                except:
+                    break
+                i += 1
+                                
+                ulc = (ulc[0],ulc[1]+mask_shape[0])
+            ulc = (ulc[0]+mask_shape[1],0)
+        
+        return masked_batch.astype('float32') / 255., batch
         
         
         
@@ -255,7 +277,25 @@ class Dataset():
         sns.distplot(speeds, rug=True)
         plt.savefig(self.path_timestamps+'speeds_hist.pdf', format='pdf')
         np.save(self.path_timestamps+'speeds.npy', speeds)
-
+    
+    def explore_illumination(self):
+        
+        dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
+        mean_illumination, hour_of_day = [], []
+        for timestamp in self.timestamp_list:
+            hour_of_day.append(timestamp.hour)
+            mean_illumination.append(255-np.mean(dl.load_image(timestamp, dl.TYPE_CAMERA, (3,1))))
+        #print(hour_of_day, mean_illumination)
+        
+        #dataframe = pd.DataFrame({'hour': hour_of_day, 'illumination': mean_illumination})
+        #print(dataframe)
+        x1 = pd.Series(hour_of_day)
+        x2 = pd.Series(mean_illumination)
+        #sns.jointplot(x="hour_of_day", y="mean_illumination", data=dataframe, kind='kde')
+        sns.jointplot(x1, x2, kind='kde')
+        plt.savefig(self.path_timestamps+'illumination.pdf', format='pdf')
+        #np.save(self.path_timestamps+'speeds.npy', speeds)
+        
     def get_speed(self, dl, timestamp):
         vel = dl.get_seapath_data(timestamp)['velocity']
         return np.linalg.norm(vel)
@@ -288,22 +328,28 @@ if __name__ == "__main__":
     
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/speed/speed>0.5/interval_60sec/'
+    ds.path_timestamps = 'datasets/new2704/all/interval_1sec/'
     ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
-#    ds.select_subset(min_speed=0.5)
-    ds.select_subset(targets_ais_min=1, max_range=1000)
+    ds.select_subset(min_speed=6)
+    #ds.select_subset(targets_ais_min=1, max_range=1000)
+    #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
+    ds.write_timestamps_file('datasets/new2704/speed>6/interval_1sec/timestamps')
     
-    ds.write_timestamps_file('datasets/ais/speed>0.5/interval_60sec/timestamps')
+    """
+    ### EXPLORE ILLUMINATION ###
+    ds = Dataset('all')
+    ds.path_timestamps = 'datasets/new2704/all/interval_30min/'
+    ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
+    ds.explore_illumination()
+    """
     
     
-    
-    
-    """    
+    """
     ### LOAD DATASET ###
     ds = Dataset('all')
     ds.get_all_timestamps_list()
-    ds.write_timestamps_file('datasets/all/interval_1sec/timestamps')
+    ds.write_timestamps_file('datasets/new2704/all/interval_1sec/timestamps')
     """
     
     #print(ds.timestamp_list)
