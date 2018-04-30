@@ -104,7 +104,8 @@ class Dataset():
         
         dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
         ds.timestamp_list = []
-                        
+        
+        t=0             
         for timestamp in tl:
             if t_start != None or t_end != None:
                 if t_start <= timestamp and timestamp < t_end:
@@ -116,13 +117,13 @@ class Dataset():
                 targets = dl.get_ais_targets(timestamp, own_pos=self.get_pos(dl, timestamp), max_range=max_range) #also returns ownship
                 
                 #print(targets)
-                if len(targets) > targets_ais_min:
+                if len(targets) >= targets_ais_min:
                     self.timestamp_list.append(timestamp)
-                    print(timestamp)
-                    
 
-            if len(self.timestamp_list)%10 == 0:
-                print(len(self.timestamp_list))
+            t += 1     
+            #if len(self.timestamp_list)%10 == 0:
+            print(t,'/',len(tl))
+            print(len(self.timestamp_list))
         
                     
         print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))
@@ -193,30 +194,7 @@ class Dataset():
         
         return self.mask_batch(original_image_batch, grid)
     
-        """
-        masked_images = np.copy(original_image_batch)
-                 
-        mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
-        ulc = (0,0) # upper left corner coordinates
-        
-        i = 0
-                        
-        for x in range(columns):
-            for y in range(rows):
-                rectangle_coordinates = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
-                im = Image.fromarray(np.uint8(image*255),'RGB') # remove scaleing
-                draw = ImageDraw.Draw(im)
-                draw.rectangle(rectangle_coordinates,fill=0)
-                masked_images[i] = np.asarray(im, dtype=np.uint8)
-                
-                original_image_batch[i] = image
-                i += 1
-                                
-                ulc = (ulc[0],ulc[1]+mask_shape[0])
-            ulc = (ulc[0]+mask_shape[1],0)
-        
-        return masked_images.astype('float32') / 255., original_image_batch # remove cast and scale
-        """
+
     def mask_batch(self, batch, grid):
         """
         Mask a 'batch' with 'grid'. In some cases, len(batch)< prod(grid) since cam_lens(1,1) is missing. this leads to unbalanced batches of masks, but should not be a too large problem.
@@ -328,13 +306,13 @@ if __name__ == "__main__":
     
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/new2704/all/interval_1sec/'
-    ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
+    #ds.path_timestamps = 'datasets/new2704/all/interval_5sec/'
+    ds.read_timestamps_file('results/ex30/data_timestamp_list_test.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
-    ds.select_subset(min_speed=6)
-    #ds.select_subset(targets_ais_min=1, max_range=1000)
+    #ds.select_subset(min_speed=6)
+    ds.select_subset(targets_ais_min=2, max_range=1000)
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
-    ds.write_timestamps_file('datasets/new2704/speed>6/interval_1sec/timestamps')
+    ds.write_timestamps_file('datasets/new2704/ais/interval_5sec/timestamps_list_test')
     
     """
     ### EXPLORE ILLUMINATION ###

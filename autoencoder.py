@@ -12,9 +12,10 @@ from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalizati
 from keras.models import Model, Sequential
 from keras.callbacks import Callback#, EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.backend import tf
+from keras.optimizers import Adam
 from keras import backend as K
 
-from figures import create_reconstruction_plot, plot_loss_history, insert_leading_zeros
+from figures import create_reconstruction_plot, create_reconstruction_plot_single_image, plot_loss_history, insert_leading_zeros
 
 class AutoencoderModel:
 
@@ -144,7 +145,8 @@ class AutoencoderModel:
         x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2]))(x)
         
         autoencoder = Model(input_image, x)
-        autoencoder.compile(optimizer='adam', loss='mean_absolute_error')
+        optimizer = Adam()#lr=0.0001
+        autoencoder.compile(optimizer=optimizer, loss='mean_absolute_error')
     
         self.model = autoencoder        
     
@@ -186,69 +188,8 @@ class Autoencoder(AutoencoderModel):
         self.path_results = path_results
         self.dataset = dataset # datasets train and val for training and train+val loss
         self.dataset_reconstruct = dataset_reconstruct # dataset val for validation/reconstruction during training.
-        
-    def train(self, epochs, batch_size): #val_split
-        """
-        Train by the use of train_on_batch() and Dataset.load_batch()
-        NOT MAINTAINED
-        """
-        
-        ds = self.dataset
-        np.save(self.path_results+'data_timestamp_list_train', ds.timestamp_list_train)
-        np.save(self.path_results+'data_timestamp_list_val', ds.timestamp_list_val)
-        assert(batch_size % ds.images_per_timestamp == 0)
-        
-        batches_per_epoch = len(ds.timestamp_list)*ds.images_per_timestamp//batch_size
-        train_batches = len(ds.timestamp_list_train)*ds.images_per_timestamp//batch_size
-        val_batches = len(ds.timestamp_list_val)*ds.images_per_timestamp//batch_size
-        
-        train_val_ratio = round(train_batches/val_batches) # better to use round()?
-        assert(train_val_ratio == round(len(ds.timestamp_list_train)/len(ds.timestamp_list_val)))
-        
-        loss_history = LossHistory()
-        loss_history.on_train_begin(self.path_results)
-        
-        print('Total, train and val batches per epoch:', batches_per_epoch, train_batches, val_batches)
-        print('Batch size:', batch_size)
-        failed_im_load = []
-        
-        for epoch in range(epochs):
-            print('Epoch '+str(epoch+1)+'/'+str(epochs))
-            val_batch = 0 # keeps track of what number of val_batch we're currently at
-            train_timestamp_index = 0 # keeps track of index in timestamp_list_train
-            val_timestamp_index = 0 # keeps track of index in timestamp_list_val
-            
-            # train
-            for train_batch in range(train_batches):
-                print('Training batch '+str(train_batch+1)+'/'+str(train_batches)+'. ', end='')
-                x_batch = []
-                x_batch, failed_im_load = ds.load_batch(ds.timestamp_list_train[train_timestamp_index:train_timestamp_index+batch_size//ds.images_per_timestamp], failed_im_load)
-                if x_batch == []:
-                    continue
-                
-                loss = self.model.train_on_batch(x_batch,x_batch)
-                loss_history.on_train_batch_end(loss)
-                print('Training loss: '+str(loss))
-                
-                train_timestamp_index += batch_size//ds.images_per_timestamp
-                
-                # validate
-                if (train_batch+1) % train_val_ratio == 0:           
-                    print('Validate batch '+str(val_batch+1)+'/'+str(val_batches)+'. ', end='')
-                    x_batch = []
-                    x_batch, failed_im_load = ds.load_batch(ds.timestamp_list_val[val_timestamp_index:val_timestamp_index+batch_size//ds.images_per_timestamp], failed_im_load)
-                    if x_batch == []:
-                        continue
-                    loss = self.model.test_on_batch(x_batch,x_batch)
-                    loss_history.on_val_batch_end(loss)                    
-                    print('Validate loss: '+str(loss))    
-                    
-                    val_batch += 1
-                    val_timestamp_index += batch_size//ds.images_per_timestamp
-                    
-                self.save_to_directory(self, loss_history, failed_im_load, epoch, train_batch, train_val_ratio, model_freq=100*train_val_ratio, loss_freq=train_val_ratio, reconstruct_freq=5*train_val_ratio, n_move_avg=1)
-                
-    def train_inpainting(self, epochs, batch_size, inpainting_grid=None, single_im=False):
+                        
+    def train(self, epochs, batch_size, inpainting_grid=None, single_im=False):
         """
         Train by the use of train_on_batch() and Dataset.load_batch()
         'single_im=True' if deep-image-prior. only training, no validation.
@@ -257,6 +198,7 @@ class Autoencoder(AutoencoderModel):
         ds = self.dataset
         np.save(self.path_results+'data_timestamp_list_train', ds.timestamp_list_train)
         np.save(self.path_results+'data_timestamp_list_val', ds.timestamp_list_val)
+        np.save(self.path_results+'data_timestamp_list_test', ds.timestamp_list_test)
                 
         batches_per_epoch = len(ds.timestamp_list)*ds.images_per_timestamp//batch_size
         train_batches = len(ds.timestamp_list_train)*ds.images_per_timestamp//batch_size
@@ -337,7 +279,7 @@ class Autoencoder(AutoencoderModel):
                     val_batch += 1
                     val_timestamp_index += self.indexing_iterator
                     
-                self.save_to_directory(loss_history, failed_im_load, epoch, train_batch, train_timestamp_index-self.indexing_iterator, val_timestamp_index-self.indexing_iterator, train_val_ratio, model_freq=100*train_val_ratio, loss_freq=train_val_ratio,  reconstruct_freq_train=train_val_ratio*1000, reconstruct_freq_val=train_val_ratio, inpainting_grid=inpainting_grid, single_im=single_im)
+                self.save_to_directory(loss_history, failed_im_load, epoch, train_batch, train_timestamp_index-self.indexing_iterator, val_timestamp_index-self.indexing_iterator, train_val_ratio, model_freq=100*train_val_ratio, loss_freq=train_val_ratio,  reconstruct_freq_train=train_val_ratio*1000, reconstruct_freq_val=10*train_val_ratio, inpainting_grid=inpainting_grid, single_im=single_im)
                 
     def save_to_directory(self, loss_history, failed_im_load, epoch, batch, train_timestamp_index, val_timestamp_index, train_val_ratio, model_freq, loss_freq, reconstruct_freq_train, reconstruct_freq_val, inpainting_grid=None, single_im=False):
         """
@@ -368,56 +310,26 @@ class Autoencoder(AutoencoderModel):
                 print('Model weights saved')
             
         if (freq_counter+1)%reconstruct_freq_train == 0: #used when reconstucting training data
-            self.test_inpainting(dataset = self.dataset, what_data_split='train', timestamp_index=train_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
+            self.test(dataset = self.dataset, what_data_split='train', timestamp_index=train_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=False)
         
         if (freq_counter+1)%reconstruct_freq_val == 0: #reconstruct_freq_val needs to be a multiplier of train_val_ratio
-            self.test_inpainting(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
-            #self.test_inpainting(dataset = self.dataset, what_data_split='train', timestamp_index=train_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
+            self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=False)
+            
+            if not inpainting_grid == None:
+                self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=True)
             
             #self.test(dataset = self.dataset, what_data_split='train', timestamp_index=train_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch)
-            #self.test_inpainting(dataset = self.dataset_reconstruct, what_data_split='val', timestamp_index=0, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
+            #self.test(dataset = self.dataset_reconstruct, what_data_split='val', timestamp_index=0, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
         #if (freq_counter+1)%(reconstruct_freq*10) == 0: 
-            #self.test_inpainting(dataset = self.dataset_reconstruct, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)    
+            #self.test(dataset = self.dataset_reconstruct, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)    
                        
-    def test(self, dataset, what_data_split, timestamp_index, numb_of_timestamps, epoch, batch):
-        """
-        Test autoencoder.model on images from the train, val or test dataset.
-        Saves figure to file.
-        To be used during training or after fully trained.
-        PARTLY MAINTAINED
-        """
-        numb_of_timestamps = self.indexing_iterator#//len(dataset.cams_lenses)
-        
-        if what_data_split == 'train':
-            timestamps = dataset.timestamp_list_train[timestamp_index:timestamp_index+numb_of_timestamps]
-        elif what_data_split == 'val':
-            timestamps = dataset.timestamp_list_val[timestamp_index:timestamp_index+numb_of_timestamps]
-        elif what_data_split == 'test':
-            timestamps = dataset.timestamp_list_test[timestamp_index:timestamp_index+numb_of_timestamps]
-        else:
-            print('Invalid data argument, no reconstruction possible.')
-        
-        #print(len(timestamps))
-        #images_per_figure = dataset.images_per_timestamp
             
-        i = 0
-        while i < numb_of_timestamps:
-            x_batch,_ = dataset.load_batch(timestamps[i:i+self.indexing_iterator], failed_im_load=[]) #images_per_figure//self.dataset.images_per_timestamp]
-            y_batch = self.model.predict_on_batch(x_batch)
-            #print(x_batch.shape)
-            plot = create_reconstruction_plot(self, x_batch, y_batch)
-            plot.savefig(self.path_results+'reconstruction-'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
-            i += self.indexing_iterator #images_per_figure//self.dataset.images_per_timestamp
-            print('Reconstruction saved')
-            
-    def test_inpainting(self, dataset, what_data_split, timestamp_index, numb_of_timestamps, epoch, batch, inpainting_grid):
+    def test(self, dataset, what_data_split, timestamp_index, numb_of_timestamps, epoch, batch, inpainting_grid, single_im_batch):
         """
         Test autoencoder.model on images from the train, val or test dataset.
         Saves figure to file.
         To be used during training or after fully trained.
         'numb_of_timestamps'>1 when used after fully trained. NOT INCLUDED ATM. SHOULD PROBABLY BE NAMED AND USED AS 'numb_of_figures'.
-        
-        TODO: make compatible with not inpainting
         
         """
         #if timestamp_index > len(dataset.timestamp_list_train): 
@@ -435,24 +347,25 @@ class Autoencoder(AutoencoderModel):
         i = 0
         while i < numb_of_timestamps:
             x,failed_im_load = dataset.load_batch(timestamps[i:i+self.indexing_iterator], failed_im_load=[])
-            #print(x.shape)    
+            #if failed_im_load != []:
+                #continue
+            
             if not inpainting_grid==None:
-                #for image in range(len(x)):
-                """
-                if np.all(x[0]==x[1]): # batch consist of one image
+                                
+                if single_im_batch: # batch consist of one image
+                    # for image in x:
                     x_batch_masked, x_batch = dataset.mask_image(x[0], inpainting_grid)    
                     x_batch_original_and_masked = np.concatenate((np.expand_dims(x_batch[0], axis=0), x_batch_masked), axis=0)
                     y_batch = self.model.predict_on_batch(x_batch_original_and_masked)
-                    plot = create_reconstruction_plot(self, x_batch_original_and_masked, y_batch, inpainting_grid)                    
+                    plot = create_reconstruction_plot_single_image(self, x_batch_original_and_masked, y_batch, inpainting_grid)                    
                     plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
                     print('Reconstruction saved')
                 else: # same as below.
-                    """
-                x_batch_masked,_ = dataset.mask_batch(x, inpainting_grid)
-                y_batch = self.model.predict_on_batch(x_batch_masked)
-                plot = create_reconstruction_plot(self, x, x_batch_masked, y_batch)                    
-                plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
-                print('Reconstruction saved')                
+                    x_batch_masked,_ = dataset.mask_batch(x, inpainting_grid)
+                    y_batch = self.model.predict_on_batch(x_batch_masked)
+                    plot = create_reconstruction_plot(self, x, x_batch_masked, y_batch)                    
+                    plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
+                    print('Reconstruction saved')                
             else:
                 y_batch = self.model.predict_on_batch(x)
                 plot = create_reconstruction_plot(self, x, x, y_batch)                    
@@ -463,7 +376,7 @@ class Autoencoder(AutoencoderModel):
     
     def merge_inpaintings(self, y_batch, inpainting_grid):
         """
-        Merges inpatinings in 'y_batch' to a single image. ish tested
+        Merges inpatinings in 'y_batch' to a single image.
         """
         mask_shape = (self.dataset.IMAGE_SHAPE[0]//inpainting_grid[0], self.dataset.IMAGE_SHAPE[1]//inpainting_grid[1])
 
