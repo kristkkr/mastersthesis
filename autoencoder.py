@@ -15,7 +15,7 @@ from keras.backend import tf
 from keras.optimizers import Adam
 from keras import backend as K
 
-from figures import create_reconstruction_plot, create_reconstruction_plot_single_image, plot_loss_history, insert_leading_zeros
+from figures import create_reconstruction_plot, create_reconstruction_plot_single_image, plot_loss_history, insert_leading_zeros, show_detections
 
 class AutoencoderModel:
 
@@ -227,7 +227,7 @@ class Autoencoder(AutoencoderModel):
         #    self.indexing_iterator = 1
         #else:
         self.indexing_iterator = batch_size//ds.images_per_timestamp
-        #print(self.indexing_iterator)
+        
         
         for epoch in range(epochs):
             print('Epoch '+str(epoch+1)+'/'+str(epochs))
@@ -245,10 +245,7 @@ class Autoencoder(AutoencoderModel):
                     continue
                 
                 if not inpainting_grid==None:
-                    #x_batch_masked, x_batch = ds.mask_image(x[0], inpainting_grid) # SHOULD BE x AND NOT x[0]
-                    
                     x_batch_masked, x_batch = ds.mask_batch(x, inpainting_grid)
-                    
                     loss = self.model.train_on_batch(x_batch_masked, x_batch)
                 else:
                     loss = self.model.train_on_batch(x, x)
@@ -267,7 +264,6 @@ class Autoencoder(AutoencoderModel):
                     if x == []:
                         continue
                     if not inpainting_grid==None:
-                        #x_batch_masked, x_batch = ds.mask_image(x[0], inpainting_grid) # SHOULD BE x AND NOT x[0]
                         x_batch_masked, x_batch = ds.mask_batch(x, inpainting_grid)
                         loss = self.model.test_on_batch(x_batch_masked, x_batch)
                     else:
@@ -279,7 +275,7 @@ class Autoencoder(AutoencoderModel):
                     val_batch += 1
                     val_timestamp_index += self.indexing_iterator
                     
-                self.save_to_directory(loss_history, failed_im_load, epoch, train_batch, train_timestamp_index-self.indexing_iterator, val_timestamp_index-self.indexing_iterator, train_val_ratio, model_freq=100*train_val_ratio, loss_freq=train_val_ratio,  reconstruct_freq_train=train_val_ratio*1000, reconstruct_freq_val=10*train_val_ratio, inpainting_grid=inpainting_grid, single_im=single_im)
+                self.save_to_directory(loss_history, failed_im_load, epoch, train_batch, train_timestamp_index-self.indexing_iterator, val_timestamp_index-self.indexing_iterator, train_val_ratio, model_freq=100*train_val_ratio, loss_freq=train_val_ratio,  reconstruct_freq_train=100000, reconstruct_freq_val=5*train_val_ratio, inpainting_grid=inpainting_grid, single_im=single_im)
                 
     def save_to_directory(self, loss_history, failed_im_load, epoch, batch, train_timestamp_index, val_timestamp_index, train_val_ratio, model_freq, loss_freq, reconstruct_freq_train, reconstruct_freq_val, inpainting_grid=None, single_im=False):
         """
@@ -299,6 +295,7 @@ class Autoencoder(AutoencoderModel):
             plot_loss_history(self.path_results, train_val_ratio, single_im, n=1)
             np.save(self.path_results+'failed_imageload_during_training', failed_im_load)
             with open(self.path_results+'failed_imageload_during_training.txt', 'w') as text: 
+                print('Length:{}'.format(len(failed_im_load)), file=text)
                 print('Timestamps and cam_lens of failed batches:\n{}'.format(failed_im_load), file=text)
     
         if (freq_counter+1)%model_freq == 0:
@@ -347,36 +344,79 @@ class Autoencoder(AutoencoderModel):
         i = 0
         while i < numb_of_timestamps:
             x,failed_im_load = dataset.load_batch(timestamps[i:i+self.indexing_iterator], failed_im_load=[])
+            
             #if failed_im_load != []:
                 #continue
             
             if not inpainting_grid==None:
                                 
                 if single_im_batch: # batch consist of one image
-                    # for image in x:
-                    x_batch_masked, x_batch = dataset.mask_image(x[0], inpainting_grid)    
+                    x_batch_masked, x_batch = dataset.mask_image(x[0], inpainting_grid)    # selects the first image in batch. 
                     x_batch_original_and_masked = np.concatenate((np.expand_dims(x_batch[0], axis=0), x_batch_masked), axis=0)
                     y_batch = self.model.predict_on_batch(x_batch_original_and_masked)
                     plot = create_reconstruction_plot_single_image(self, x_batch_original_and_masked, y_batch, inpainting_grid)                    
-                    plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
-                    print('Reconstruction saved')
+                    plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'-single.jpg')
+                    print('Reconstruction single image inpainting saved')
                 else: # same as below.
                     x_batch_masked,_ = dataset.mask_batch(x, inpainting_grid)
                     y_batch = self.model.predict_on_batch(x_batch_masked)
-                    plot = create_reconstruction_plot(self, x, x_batch_masked, y_batch)                    
+                    plot = create_reconstruction_plot(self, x, y_batch, x_batch_masked)                    
                     plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
-                    print('Reconstruction saved')                
+                    print('Reconstruction inpainting saved')                
             else:
                 y_batch = self.model.predict_on_batch(x)
-                plot = create_reconstruction_plot(self, x, x, y_batch)                    
+                plot = create_reconstruction_plot(self, x, y_batch)                    
                 plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
-                print('Reconstruction saved')            
+                print('Reconstruction regular saved')            
 
             i += self.indexing_iterator
+            
+            
+    def evaluate(self, inpainting_grid, threshold):
+        """
+        Evaluate model on test data. Same procedure as for single_im_batch in test()
+        """
+        timestamps = self.dataset.timestamp_list_val[:5]
+        numb_of_timestamps = len(timestamps)
+        
+        for i in range(numb_of_timestamps):
+            x,failed_im_load = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
+            
+            for cam_lens_im in range(len(x)):
+                x_batch_masked, _ = self.dataset.mask_image(cam_lens_im, inpainting_grid)
+                y_batch = self.model.predict_on_batch(x_batch_masked)
+                inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
+                residual = np.mean(np.abs(np.subtract(x[cam_lens_im], inpainted)), axis=2)
+                
+                binary_map = residual > (threshold/255)
+                ## evaluate binary_map against GT ##
+                
+                ## visual 
+                object_map = self.map_on_image(x[cam_lens_im], binary_map)
+                
+                figure = show_detections(x[cam_lens_im], inpainted, residual, object_map)
+                
+                figure.savefig(self.path_results+'detections-'+str(i)+'-camlens-'+str(cam_lens_im)+'.jpg')
+                print('figsaved')
+                
+    def count_detections(self, binary_map, gt_file):
+        "counts tp, tn, fp in binary map with respect to ground truth file"
+        pass
+                           
+    
+    def map_on_image(self, image, binary_map):
+        x,y,_ = image.shape
+        for i in range(x):
+            for j in range(y):
+                if binary_map[i,j] == 1:
+                    image[i,j,:] = [1,0,0]
+        return image         
+            
     
     def merge_inpaintings(self, y_batch, inpainting_grid):
         """
-        Merges inpatinings in 'y_batch' to a single image.
+        Merges inpatinings in 'y_batch' to a single image. 
+        MOVE TO FIGURES.
         """
         mask_shape = (self.dataset.IMAGE_SHAPE[0]//inpainting_grid[0], self.dataset.IMAGE_SHAPE[1]//inpainting_grid[1])
 

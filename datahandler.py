@@ -16,7 +16,9 @@ import seaborn as sns
 import pandas as pd
 from PIL import Image, ImageDraw
 from random import shuffle
+from scipy.misc import imsave
 import matplotlib.pyplot as plt
+
 #from collections import Iterable
 
 sys.path.insert(0,'/home/kristoffer/Documents/sensorfusion/polarlys')
@@ -156,7 +158,7 @@ class Dataset():
                     im = dl.load_image(timestamp, dl.TYPE_CAMERA, cam_lens)
                     #if not im == []: 
                     #if mask_image:
-                           
+                    #print(im)
                     batch.resize(((i+1,)+(self.IMAGE_SHAPE))) # not double tested if correct. if wrong, we train at only zeros without noiticing
                     batch[i,:] = im
                 
@@ -282,10 +284,29 @@ class Dataset():
         pos = dl.get_seapath_data(timestamp)['position']
         return pos
     
- 
-class Figures():
-    pass
-
+    def copy_images_to_dir(self, numb_of_images, dir_save):
+        """ 
+        Move a subset of test data to a directory. 
+        """
+        numb_of_timestamps = numb_of_images// self.images_per_timestamp
+        timestamps = self.timestamp_list_test[:numb_of_timestamps]
+        
+        dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
+        FILE_NAME_FORMAT_SEC = '{:%Y-%m-%d-%H_%M_%S}'
+        
+        image = []
+        
+        for timestamp in timestamps:
+            for cam_lens in self.cams_lenses: 
+                image = dl.load_image(timestamp, dl.TYPE_CAMERA, cam_lens)
+                try:
+                    image.shape
+                except:
+                    print('image cam_lens not loaded')
+                    continue
+                name = FILE_NAME_FORMAT_SEC.format(timestamp)+str(cam_lens)+'.jpg'
+                imsave(dir_save+name, image)
+                
 if __name__ == "__main__":
     
     """
@@ -300,10 +321,8 @@ if __name__ == "__main__":
     masked_images = ds.mask_image(image,3,3)
     #Image.fromarray(np.uint8(masked_images[4]*255),'RGB').show()
     """
-    
-
-    
-    
+   
+    """
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
     #ds.path_timestamps = 'datasets/new2704/all/interval_5sec/'
@@ -313,6 +332,13 @@ if __name__ == "__main__":
     ds.select_subset(targets_ais_min=2, max_range=1000)
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
     ds.write_timestamps_file('datasets/new2704/ais/interval_5sec/timestamps_list_test')
+    """
+    
+    ### MOVE TEST DATA TO DIRECTORY ###
+    ds = Dataset([(1,1),(3,1)])
+    path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/' 
+    ds.timestamp_list_test = np.load(path_data+'timestamps_list_test.npy')
+    ds.copy_images_to_dir(20, path_data+'test/')
     
     """
     ### EXPLORE ILLUMINATION ###

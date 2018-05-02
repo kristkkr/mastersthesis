@@ -11,7 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from PIL import Image
-#from skimage import filters, morphology
+
+
 from keras.preprocessing.image import ImageDataGenerator
 
 
@@ -47,18 +48,25 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n):
     plt.close()
         
         
-def create_reconstruction_plot(autoencoder, original_imgs, masked_imgs, reconstructed_imgs):
-    # TODO remove masked imgs if non-masked
-    fig_rows = 4
-    fig_columns = len(masked_imgs)
-    residual = np.empty((masked_imgs.shape[:3]))
+def create_reconstruction_plot(autoencoder, original_imgs, reconstructed_imgs, *args):
+    
+    fig_rows = 3
+    
+    if args:
+        masked_imgs = args[0]
+        fig_rows += 1
+    
+    fig_columns = len(original_imgs)
+    residual = np.empty((original_imgs.shape[:3]))
     
     gs = gridspec.GridSpec(fig_rows, fig_columns)
     gs.update(wspace=0.02, hspace=0.02)
+    font_size=12
+    rotation = 90
     scale=80
     plot = plt.figure(figsize=(2560*fig_columns//scale,1920*fig_rows//scale))
     for i in range(fig_columns):
-
+        row=0
         # display original and masked
         ax = plt.subplot(gs[i])#fig_rows, fig_columns, i + 1)
         try:
@@ -66,22 +74,34 @@ def create_reconstruction_plot(autoencoder, original_imgs, masked_imgs, reconstr
         except:
             continue
         ax.axis('off')  
+        if i==0: 
+            ax.set_ylabel('Original', rotation=rotation, fontsize=font_size)
+        row += 1
         
-        ax = plt.subplot(gs[i+fig_columns]) 
-        plt.imshow(masked_imgs[i])
-        ax.axis('off')        
+        if args:
+            ax = plt.subplot(gs[i+row*fig_columns]) 
+            plt.imshow(masked_imgs[i])
+            ax.axis('off')        
+            if i==0: 
+                ax.set_ylabel('Masked', rotation=rotation, fontsize=font_size)
+            row += 1
         
         # display reconstructions
-        ax = plt.subplot(gs[i+2*fig_columns]) 
+        ax = plt.subplot(gs[i+row*fig_columns]) 
         plt.imshow(reconstructed_imgs[i])
         ax.axis('off')        
+        if i==0: 
+            ax.set_ylabel('Reconstructed', rotation=rotation, fontsize=font_size)
+        row += 1
         
         # reconstruction residual in grayscale
         residual = np.mean(np.abs(np.subtract(reconstructed_imgs[i], original_imgs[i])), axis=2)
-        ax = plt.subplot(gs[i+3*fig_columns]) 
+        ax = plt.subplot(gs[i+row*fig_columns]) 
         plt.imshow(residual, cmap='gray')
         ax.axis('off')
-        
+        if i==0: 
+            ax.set_ylabel('Residual', rotation=rotation, fontsize=font_size)
+                
     #plt.subplots_adjust(wspace=0.02,hspace=0.02)
     
     plt.close(plot)
@@ -153,6 +173,24 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
     #plt.subplots_adjust(wspace=0.02,hspace=0.02)
     
     plt.close(plot)
+    return plot
+
+def show_detections(self, *args):
+    # needs testing
+    
+    rows, columns = len(args), 1 
+    
+    gs = gridspec.GridSpec(rows, columns)
+    gs.update(wspace=0.02, hspace=0.02)
+    scale=300
+    plot = plt.figure(figsize=(2560*columns//scale,1920*rows//scale))
+    
+    for i in range(len(args)):
+        ax = plt.subplot(gs[i])
+        #print(args[i])
+        plt.imshow(args[i])
+        ax.axis('off')
+    
     return plot
 
 def show_raw_data(rows,cols,path_save):
