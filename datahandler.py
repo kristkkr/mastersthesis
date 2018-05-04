@@ -146,7 +146,26 @@ class Dataset():
         print('Number of timestemps for each hour removed:',actually_removed_hours)
         print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))
 
+
+    def remove_timestamp_illumination(self, remove_illumination_range, removal_freq):
+        self.timestamp_list = list(self.timestamp_list)
+        dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
+        i=0
+        freq_counter=0
         
+        while i < len(self.timestamp_list):
+            illumination = int(np.mean(dl.load_image(self.timestamp_list[i], dl.TYPE_CAMERA, (3,1))))
+            
+            if illumination in remove_illumination_range:
+                freq_counter +=1
+                if freq_counter % removal_freq == 0:
+                    del self.timestamp_list[i]
+                    i = i-1
+            i = i+1  
+            if i%100 ==0:
+                print(i)
+        print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))        
+    
     def sample_list(self, l, sampling_interval):
         return l[0:len(l):sampling_interval]
     
@@ -273,7 +292,7 @@ class Dataset():
     
     def explore_illumination(self):
         
-        dfname = 'illumination2'
+        dfname = 'illumination'
                 
         hourname, illuminationname = 'Hour of day', 'Illumination intensity'
         try:
@@ -345,18 +364,19 @@ if __name__ == "__main__":
     masked_images = ds.mask_image(image,3,3)
     #Image.fromarray(np.uint8(masked_images[4]*255),'RGB').show()
     """
-    """
+    
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/new2704/all/interval_30min/'
-    ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
+    ds.path_timestamps = 'datasets/new2704/speed>6/interval_5sec/'
+    ds.read_timestamps_file(ds.path_timestamps+'data_timestamp_list_val.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
     #ds.select_subset(min_speed=6)
     #ds.select_subset(targets_ais_min=2, max_range=1000)
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
-    ds.remove_hour_from_timestamplist([1,2,3,4,20,21,22,23], 2)
-    ds.write_timestamps_file(ds.path_timestamps+'removedhours/timestamps2')
-    """
+    #ds.remove_hour_from_timestamplist([1,2,3,4,20,21,22,23], 2)
+    ds.remove_timestamp_illumination(range(50),2)
+    ds.write_timestamps_file(ds.path_timestamps+'removed_illumination/data_timestamp_list_val')
+    
     """
     ### MOVE TEST DATA TO DIRECTORY ###
     ds = Dataset([(1,1),(3,1)])
@@ -365,13 +385,13 @@ if __name__ == "__main__":
     ds.copy_images_to_dir(20, path_data+'test/')
     """
     
-    
+    """
     ### EXPLORE ILLUMINATION ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/new2704/all/interval_30min/removedhours/'
+    ds.path_timestamps = 'datasets/new2704/all/interval_30min/removed_hours/'
     ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     ds.explore_illumination()
-    
+    """
     
     
     """
