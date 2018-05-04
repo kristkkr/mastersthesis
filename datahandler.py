@@ -123,13 +123,29 @@ class Dataset():
                     self.timestamp_list.append(timestamp)
 
             t += 1     
-            #if len(self.timestamp_list)%10 == 0:
-            print(t,'/',len(tl))
-            print(len(self.timestamp_list))
+            if len(self.timestamp_list)%10 == 0:
+                print(t,'/',len(tl))
+            
         
                     
         print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))
-                
+    
+    def remove_hour_from_timestamplist(self, remove_hour, removal_freq):
+            
+        self.timestamp_list = list(self.timestamp_list)
+        i=0
+        removed_hours, actually_removed_hours = [0]*24, [0]*24 #'removed_hours' is a bad name, they are not all removed.
+        while i < len(self.timestamp_list):
+            if self.timestamp_list[i].hour in remove_hour:
+                removed_hours[self.timestamp_list[i].hour] +=1
+                if removed_hours[self.timestamp_list[i].hour] % removal_freq == 0:
+                    actually_removed_hours[self.timestamp_list[i].hour] +=1
+                    del self.timestamp_list[i]
+                    i = i-1
+            i = i+1    
+        print('Number of timestemps for each hour removed:',actually_removed_hours)
+        print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))
+
         
     def sample_list(self, l, sampling_interval):
         return l[0:len(l):sampling_interval]
@@ -156,9 +172,6 @@ class Dataset():
             for cam_lens in self.cams_lenses: 
                 try:
                     im = dl.load_image(timestamp, dl.TYPE_CAMERA, cam_lens)
-                    #if not im == []: 
-                    #if mask_image:
-                    #print(im)
                     batch.resize(((i+1,)+(self.IMAGE_SHAPE))) # not double tested if correct. if wrong, we train at only zeros without noiticing
                     batch[i,:] = im
                 
@@ -260,21 +273,32 @@ class Dataset():
     
     def explore_illumination(self):
         
-        dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
-        mean_illumination, hour_of_day = [], []
-        for timestamp in self.timestamp_list:
-            hour_of_day.append(timestamp.hour)
-            mean_illumination.append(255-np.mean(dl.load_image(timestamp, dl.TYPE_CAMERA, (3,1))))
-        #print(hour_of_day, mean_illumination)
+        dfname = 'illumination2'
+                
+        hourname, illuminationname = 'Hour of day', 'Illumination intensity'
+        try:
+            df = pd.read_pickle(self.path_timestamps+dfname)    
+            print('Dataframe', dfname, 'loaded')
+        except:    
+            dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
+            mean_illumination, hour_of_day = [], []
+            counter = 0
+            for timestamp in self.timestamp_list:
+                hour_of_day.append(timestamp.hour)
+                mean_illumination.append(np.mean(dl.load_image(timestamp, dl.TYPE_CAMERA, (3,1))))
+                counter +=1
+                if counter%100==0:
+                    print(counter)
+
+            df = pd.DataFrame({hourname: hour_of_day, illuminationname: mean_illumination})
+            df.to_pickle(self.path_timestamps+dfname)
+            
+        figkind = 'hex'
+        figname = dfname+figkind
+        sns.jointplot(x=hourname, y=illuminationname, data=df, kind=figkind, stat_func=None, marginal_kws=dict(bins=24), xlim = (0,24), ylim=(0,255))
         
-        #dataframe = pd.DataFrame({'hour': hour_of_day, 'illumination': mean_illumination})
-        #print(dataframe)
-        x1 = pd.Series(hour_of_day)
-        x2 = pd.Series(mean_illumination)
-        #sns.jointplot(x="hour_of_day", y="mean_illumination", data=dataframe, kind='kde')
-        sns.jointplot(x1, x2, kind='kde')
-        plt.savefig(self.path_timestamps+'illumination.pdf', format='pdf')
-        #np.save(self.path_timestamps+'speeds.npy', speeds)
+        plt.savefig(self.path_timestamps+figname+'.pdf', format='pdf')
+        
         
     def get_speed(self, dl, timestamp):
         vel = dl.get_seapath_data(timestamp)['velocity']
@@ -321,32 +345,33 @@ if __name__ == "__main__":
     masked_images = ds.mask_image(image,3,3)
     #Image.fromarray(np.uint8(masked_images[4]*255),'RGB').show()
     """
-   
     """
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    #ds.path_timestamps = 'datasets/new2704/all/interval_5sec/'
-    ds.read_timestamps_file('results/ex30/data_timestamp_list_test.npy')
+    ds.path_timestamps = 'datasets/new2704/all/interval_30min/'
+    ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
     #ds.select_subset(min_speed=6)
-    ds.select_subset(targets_ais_min=2, max_range=1000)
+    #ds.select_subset(targets_ais_min=2, max_range=1000)
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
-    ds.write_timestamps_file('datasets/new2704/ais/interval_5sec/timestamps_list_test')
+    ds.remove_hour_from_timestamplist([1,2,3,4,20,21,22,23], 2)
+    ds.write_timestamps_file(ds.path_timestamps+'removedhours/timestamps2')
     """
-    
+    """
     ### MOVE TEST DATA TO DIRECTORY ###
     ds = Dataset([(1,1),(3,1)])
     path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/' 
     ds.timestamp_list_test = np.load(path_data+'timestamps_list_test.npy')
     ds.copy_images_to_dir(20, path_data+'test/')
-    
     """
+    
+    
     ### EXPLORE ILLUMINATION ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/new2704/all/interval_30min/'
+    ds.path_timestamps = 'datasets/new2704/all/interval_30min/removedhours/'
     ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     ds.explore_illumination()
-    """
+    
     
     
     """
