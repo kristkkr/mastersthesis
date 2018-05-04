@@ -154,8 +154,10 @@ class Dataset():
         freq_counter=0
         
         while i < len(self.timestamp_list):
-            illumination = int(np.mean(dl.load_image(self.timestamp_list[i], dl.TYPE_CAMERA, (3,1))))
-            
+            try:
+                illumination = int(np.mean(dl.load_image(self.timestamp_list[i], dl.TYPE_CAMERA, (3,1))))
+            except:
+                continue
             if illumination in remove_illumination_range:
                 freq_counter +=1
                 if freq_counter % removal_freq == 0:
@@ -368,14 +370,14 @@ if __name__ == "__main__":
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
     ds.path_timestamps = 'datasets/new2704/speed>6/interval_5sec/'
-    ds.read_timestamps_file(ds.path_timestamps+'data_timestamp_list_val.npy')
+    ds.read_timestamps_file(ds.path_timestamps+'data_timestamp_list_train.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
     #ds.select_subset(min_speed=6)
     #ds.select_subset(targets_ais_min=2, max_range=1000)
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
     #ds.remove_hour_from_timestamplist([1,2,3,4,20,21,22,23], 2)
     ds.remove_timestamp_illumination(range(50),2)
-    ds.write_timestamps_file(ds.path_timestamps+'removed_illumination/data_timestamp_list_val')
+    ds.write_timestamps_file(ds.path_timestamps+'removed_illumination/data_timestamp_list_train')
     
     """
     ### MOVE TEST DATA TO DIRECTORY ###
