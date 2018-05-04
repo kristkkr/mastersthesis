@@ -196,10 +196,7 @@ class Autoencoder(AutoencoderModel):
         fails if more than one of cams_lenses.
         """
         ds = self.dataset
-        np.save(self.path_results+'data_timestamp_list_train', ds.timestamp_list_train)
-        np.save(self.path_results+'data_timestamp_list_val', ds.timestamp_list_val)
-        np.save(self.path_results+'data_timestamp_list_test', ds.timestamp_list_test)
-                
+
         batches_per_epoch = len(ds.timestamp_list)*ds.images_per_timestamp//batch_size
         train_batches = len(ds.timestamp_list_train)*ds.images_per_timestamp//batch_size
         val_batches = len(ds.timestamp_list_val)*ds.images_per_timestamp//batch_size

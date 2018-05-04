@@ -38,17 +38,19 @@ ae.test(dataset=ds, what_data_split='val', timestamp_index=1, numb_of_timestamps
 
 """
 ds_train = Dataset(cams_lenses = [(1,1),(3,1)]) #  when (1,1) is included, the batch size during training varies. might affect convergence in a bad way.
-#ds_train.read_timestamps_file('datasets/new2704/speed>6/interval_5sec/timestamps.npy')
-#ds_train.split_list(split_frac = (0.8,0.1,0.1), shuffle_order=True)
+ds_train.read_timestamps_file('datasets/new2704/speed>6/interval_5sec/removed_hours/timestamps.npy')
+ds_train.split_list(split_frac = (0.8,0.1,0.1), shuffle_order=True)
 
 
-path_results = '/home/kristoffer/Documents/mastersthesis/results/ex33/' 
+path_results = '/home/kristoffer/Documents/mastersthesis/results/ex34/' 
 path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/speed>6/interval_5sec/' 
 path_model_load = '/home/kristoffer/Documents/mastersthesis/results/ex25/' 
-
-ds_train.timestamp_list_train = np.load(path_data+'data_timestamp_list_train.npy') 
-ds_train.timestamp_list_val = np.load(path_data+'data_timestamp_list_val.npy') 
-ds_train.timestamp_list_test = np.load(path_data+'data_timestamp_list_test.npy') 
+np.save(path_results+'data_timestamp_list_train', ds_train.timestamp_list_train)
+np.save(path_results+'data_timestamp_list_val', ds_train.timestamp_list_val)
+np.save(path_results+'data_timestamp_list_test', ds_train.timestamp_list_test)
+#ds_train.timestamp_list_train = np.load(path_data+'data_timestamp_list_train.npy') 
+#ds_train.timestamp_list_val = np.load(path_data+'data_timestamp_list_val.npy') 
+#ds_train.timestamp_list_test = np.load(path_data+'data_timestamp_list_test.npy') 
 
 
 ds_val = Dataset(cams_lenses = [(0,1)]) 
