@@ -15,6 +15,8 @@ from keras.backend import tf
 from keras.optimizers import Adam
 from keras import backend as K
 
+import xml.etree.ElementTree as ET
+
 from figures import create_reconstruction_plot, create_reconstruction_plot_single_image, plot_loss_history, insert_leading_zeros, show_detections
 
 class AutoencoderModel:
@@ -389,26 +391,13 @@ class Autoencoder(AutoencoderModel):
                 ## evaluate binary_map against GT ##
                 
                 ## visual 
-                object_map = self.map_on_image(x[cam_lens_im], binary_map)
+                object_map = map_on_image(x[cam_lens_im], binary_map)
                 
                 figure = show_detections(x[cam_lens_im], inpainted, residual, object_map)
                 
                 figure.savefig(self.path_results+'detections-'+str(i)+'-camlens-'+str(cam_lens_im)+'.jpg')
                 print('figsaved')
                 
-    def count_detections(self, binary_map, gt_file):
-        "counts tp, tn, fp in binary map with respect to ground truth file"
-        pass
-                           
-    
-    def map_on_image(self, image, binary_map):
-        x,y,_ = image.shape
-        for i in range(x):
-            for j in range(y):
-                if binary_map[i,j] == 1:
-                    image[i,j,:] = [1,0,0]
-        return image         
-            
     
     def merge_inpaintings(self, y_batch, inpainting_grid):
         """
@@ -434,6 +423,69 @@ class Autoencoder(AutoencoderModel):
                 y0 = y0 + mask_shape[0]
             x0 = x0 + mask_shape[1]
         return inpainted
+    
+def count_pixel_detections(binary_map, gt_file):
+    """counts pixel detections tp, tn, fp in binary predicted map with respect to ground truth file"""
+    y,x = binary_map.shape
+    gt_map = read_gt_file(gt_file,(y,x))
+    binary_map, gt_map = binary_map/255, gt_map/255
+    tp, fp, fn, tn = 0,0,0,0
+    for j in range(y):
+        for i in range(x):
+            if binary_map[j,i]==1:
+                if gt_map[j,i] == 1:
+                    tp +=1
+                else:
+                    fp +=1
+            else:
+                if gt_map[j,i] == 1:
+                    fn +=1
+                else:
+                    tn +=1
+                    
+    return tp, fp, fn, tn
+
+def count_box_detections(binary_map, gt_file):
+    """counts box detections"""
+    y,x = binary_map.shape
+    gt_map, boxes = read_gt_file(gt_file,(y,x))
+    binary_map, gt_map = binary_map/255, gt_map/255
+    tp, fp, fn, tn = 0,0,0,0
+    for box in boxes:
+        xmin, ymin, xmax, ymax = box[0], box[1], box[2], box[3]
+        
+        if binary_map[ymin:ymax,xmin:xmax].any() == 1:
+            tp +=1
+        else:
+            fn +=1
+            
+    return tp, fn
+    
+from PIL import ImageDraw, Image
+
+def read_gt_file(gt_file,shape):
+    gt_im = Image.fromarray(np.zeros(shape, dtype=np.uint8))#self.dataset.IMAGE_SHAPE)
+    draw = ImageDraw.Draw(gt_im)
+    tree = ET.parse(gt_file)
+    root = tree.getroot()
+    boxes = []
+    for bbox in root.iter('bndbox'):
+        box = []
+        for child in bbox:
+            box.append(int(child.text))
+        draw.rectangle(box,fill=255)
+        boxes.append(box)
+    gt_map = np.asarray(gt_im, dtype=np.uint8)
+    #Image.fromarray(gt_map, mode='L').show()
+    return gt_map, boxes
+    
+def map_on_image(image, binary_map):
+    x,y,_ = image.shape
+    for i in range(x):
+        for j in range(y):
+            if binary_map[i,j] == 1:
+                image[i,j,:] = [1,0,0]
+    return image
         
 class LossHistory(Callback):
     def on_train_begin(self, path_results, log={}):
@@ -455,12 +507,17 @@ if __name__ == "__main__":
     
     from datahandler import Dataset
 
-    # initialize model
-    ds = Dataset('all')
-    path_results = '/home/kristoffer/Documents/mastersthesis/results/ex2/'
-    ae = Autoencoder(ds, path_results)
-    ae.create_ContextEncoder_model()
-    ae.model.summary()
+    
+    path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test/2017-12-20-07_13_30(3, 1).xml'
+    #binary_map,_ = read_gt_file(path_test,(1920,2560))
+    binary_map = np.zeros((1920,2560))
+    #Image.fromarray(binary_map, mode='L').show()
+    #tp, fp, fn, tn = count_pixel_detections(binary_map, path_test)
+    tp, fn = count_box_detections(binary_map, path_test)
+    print(tp,fn)
+    
+    
+    
     """ 
     # initialize data
     ds = Dataset()
