@@ -6,7 +6,11 @@ Created on Thu Feb  8 15:40:09 2018
 @author: kristoffer
 
 """
+import os
+
 import numpy as np
+from scipy.ndimage import imread
+#from scipy.imageio import imread
 
 from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape
 from keras.models import Model, Sequential
@@ -14,8 +18,10 @@ from keras.callbacks import Callback#, EarlyStopping, ModelCheckpoint, TensorBoa
 from keras.backend import tf
 from keras.optimizers import Adam
 from keras import backend as K
+from keras.preprocessing.image import ImageDataGenerator
 
 import xml.etree.ElementTree as ET
+
 
 from figures import create_reconstruction_plot, create_reconstruction_plot_single_image, plot_loss_history, insert_leading_zeros, show_detections
 
@@ -184,7 +190,7 @@ class AutoencoderModel:
     """
    
 class Autoencoder(AutoencoderModel):
-    def __init__(self, path_results, dataset, dataset_reconstruct): 
+    def __init__(self, path_results, dataset, dataset_reconstruct=None): 
         #self.input_shape = dataset.IMAGE_SHAPE
         self.model = None #self.create_model()
         self.path_results = path_results
@@ -371,32 +377,7 @@ class Autoencoder(AutoencoderModel):
             i += self.indexing_iterator
             
             
-    def evaluate(self, inpainting_grid, threshold):
-        """
-        Evaluate model on test data. Same procedure as for single_im_batch in test()
-        """
-        timestamps = self.dataset.timestamp_list_val[:5]
-        numb_of_timestamps = len(timestamps)
-        
-        for i in range(numb_of_timestamps):
-            x,failed_im_load = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
-            
-            for cam_lens_im in range(len(x)):
-                x_batch_masked, _ = self.dataset.mask_image(cam_lens_im, inpainting_grid)
-                y_batch = self.model.predict_on_batch(x_batch_masked)
-                inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
-                residual = np.mean(np.abs(np.subtract(x[cam_lens_im], inpainted)), axis=2)
-                
-                binary_map = residual > (threshold/255)
-                ## evaluate binary_map against GT ##
-                
-                ## visual 
-                object_map = map_on_image(x[cam_lens_im], binary_map)
-                
-                figure = show_detections(x[cam_lens_im], inpainted, residual, object_map)
-                
-                figure.savefig(self.path_results+'detections-'+str(i)+'-camlens-'+str(cam_lens_im)+'.jpg')
-                print('figsaved')
+
                 
     
     def merge_inpaintings(self, y_batch, inpainting_grid):
@@ -423,12 +404,66 @@ class Autoencoder(AutoencoderModel):
                 y0 = y0 + mask_shape[0]
             x0 = x0 + mask_shape[1]
         return inpainted
+
+def evaluate(inpainting_grid):
+    """
+    Evaluate model on test data. Same procedure as for single_im_batch in test()
+    """
+    #timestamps = self.dataset.timestamp_list_val[:5]
+    #numb_of_timestamps = len(timestamps)
     
+    #for i in range(numb_of_timestamps):
+        #x,failed_im_load = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
+        
+        #for cam_lens_im in range(len(x)):
+    path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test/'
+    for filename in sorted(os.listdir(path_test)): #self.dataset.path_test):
+        if filename.endswith('.jpg'):
+            image = imread(path_test+filename)
+            """
+            x_batch_masked, _ = self.dataset.mask_image(image, inpainting_grid)
+            y_batch = self.model.predict_on_batch(x_batch_masked)
+            inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
+            residual = np.mean(np.abs(np.subtract(image, inpainted)), axis=2)
+            """
+            
+            residual = imread(path_test+filename, mode='L')
+            #print(residual.shape)
+            #print(np.amin(residual),np.amax(residual))
+            #Image.fromarray(residual, mode='L').show()
+            
+            threshold = 150
+            threshold_array = threshold*np.ones(residual.shape,dtype=np.uint8)
+            #print(threshold_array.shape)
+            #print(np.amin(threshold_array),np.amax(threshold_array))
+            binary_map = np.greater(residual, threshold_array)
+            #print(binary_map.shape)
+            #print(np.amin(binary_map),np.amax(binary_map))
+            #Image.fromarray(binary_map, mode='L').show()
+            ## evaluate binary_map against GT ##
+             
+            box_tp, box_fn, recall = count_box_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))# self.dataset.IMAGE_EXTENSION
+            pixel_tp, pixel_fp, precision = count_pixel_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))
+            
+            print(filename)
+            print(box_tp, box_fn,'recall=',recall)
+            print(pixel_tp, pixel_fp, 'precision=',precision)
+            ## visual 
+            object_map = map_on_image(image, binary_map)
+            #print(object_map.shape)
+            Image.fromarray(object_map, mode='RGB').show()
+            
+            #figure = show_detections(image, inpainted, residual, object_map)
+            
+            #figure.savefig(self.path_results+'detections-'+str(image)+'.jpg')
+            #print('figsaved')
+            
 def count_pixel_detections(binary_map, gt_file):
-    """counts pixel detections tp, tn, fp in binary predicted map with respect to ground truth file"""
+    """counts pixel detections tp, tn, fp in binary predicted map with respect to ground truth file. use both background and object classes?"""
     y,x = binary_map.shape
-    gt_map = read_gt_file(gt_file,(y,x))
-    binary_map, gt_map = binary_map/255, gt_map/255
+    gt_map,_ = read_gt_file(gt_file,(y,x))
+    
+    #binary_map, gt_map = binary_map/255, gt_map/255
     tp, fp, fn, tn = 0,0,0,0
     for j in range(y):
         for i in range(x):
@@ -442,14 +477,17 @@ def count_pixel_detections(binary_map, gt_file):
                     fn +=1
                 else:
                     tn +=1
-                    
-    return tp, fp, fn, tn
+    try:
+        precision = tp/(tp+fp)
+    except:
+        precision = 'NaN'
+    return tp, fp, precision
 
 def count_box_detections(binary_map, gt_file):
-    """counts box detections"""
+    """counts box detections. use object box class"""
     y,x = binary_map.shape
-    gt_map, boxes = read_gt_file(gt_file,(y,x))
-    binary_map, gt_map = binary_map/255, gt_map/255
+    _, boxes = read_gt_file(gt_file,(y,x))
+    #binary_map, gt_map = binary_map/255, gt_map/255
     tp, fp, fn, tn = 0,0,0,0
     for box in boxes:
         xmin, ymin, xmax, ymax = box[0], box[1], box[2], box[3]
@@ -458,8 +496,11 @@ def count_box_detections(binary_map, gt_file):
             tp +=1
         else:
             fn +=1
-            
-    return tp, fn
+    try:
+        recall = tp/(tp+fn)    
+    except:
+        recall = 'NaN'
+    return tp, fn, recall
     
 from PIL import ImageDraw, Image
 
@@ -475,16 +516,17 @@ def read_gt_file(gt_file,shape):
             box.append(int(child.text))
         draw.rectangle(box,fill=255)
         boxes.append(box)
-    gt_map = np.asarray(gt_im, dtype=np.uint8)
+    gt_map = np.asarray(gt_im, dtype=np.uint8)/255
     #Image.fromarray(gt_map, mode='L').show()
     return gt_map, boxes
     
 def map_on_image(image, binary_map):
     x,y,_ = image.shape
+    mask_color = np.amax(image)
     for i in range(x):
         for j in range(y):
             if binary_map[i,j] == 1:
-                image[i,j,:] = [1,0,0]
+                image[i,j,:] = [mask_color,0,0]
     return image
         
 class LossHistory(Callback):
@@ -511,10 +553,11 @@ if __name__ == "__main__":
     path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test/2017-12-20-07_13_30(3, 1).xml'
     #binary_map,_ = read_gt_file(path_test,(1920,2560))
     binary_map = np.zeros((1920,2560))
+    evaluate((3,4))
     #Image.fromarray(binary_map, mode='L').show()
     #tp, fp, fn, tn = count_pixel_detections(binary_map, path_test)
-    tp, fn = count_box_detections(binary_map, path_test)
-    print(tp,fn)
+    #tp, fn = count_box_detections(binary_map, path_test)
+    #print(tp,fn)
     
     
     

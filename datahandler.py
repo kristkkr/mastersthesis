@@ -33,6 +33,7 @@ class Dataset():
     def __init__(self, cams_lenses):
         self.path = '/nas0/'
         self.path_timestamps = None
+        self.path_test = None
         self.timestamp_list = []
         #self.timestamp_list_shuffled = []
         self.timestamp_list_train = []
@@ -333,8 +334,11 @@ class Dataset():
         """ 
         Move a subset of test data to a directory. 
         """
-        numb_of_timestamps = numb_of_images// self.images_per_timestamp
-        timestamps = self.timestamp_list_test[:numb_of_timestamps]
+        if numb_of_images == 'all':
+            timestamps = self.timestamp_list_test
+        else:
+            numb_of_timestamps = numb_of_images// self.images_per_timestamp
+            timestamps = self.timestamp_list_test[:numb_of_timestamps]
         
         dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
         FILE_NAME_FORMAT_SEC = '{:%Y-%m-%d-%H_%M_%S}'
@@ -366,26 +370,26 @@ if __name__ == "__main__":
     masked_images = ds.mask_image(image,3,3)
     #Image.fromarray(np.uint8(masked_images[4]*255),'RGB').show()
     """
-    
+    """
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
     ds.path_timestamps = 'datasets/new2704/speed>6/interval_5sec/'
-    ds.read_timestamps_file(ds.path_timestamps+'data_timestamp_list_train.npy')
+    ds.read_timestamps_file(ds.path_timestamps+'data_timestamp_list_val.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
     #ds.select_subset(min_speed=6)
     #ds.select_subset(targets_ais_min=2, max_range=1000)
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
     #ds.remove_hour_from_timestamplist([1,2,3,4,20,21,22,23], 2)
     ds.remove_timestamp_illumination(range(50),2)
-    ds.write_timestamps_file(ds.path_timestamps+'removed_illumination/data_timestamp_list_train')
-    
+    ds.write_timestamps_file(ds.path_timestamps+'removed_illumination/data_timestamp_list_val')
     """
+    
     ### MOVE TEST DATA TO DIRECTORY ###
     ds = Dataset([(1,1),(3,1)])
     path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/' 
     ds.timestamp_list_test = np.load(path_data+'timestamps_list_test.npy')
-    ds.copy_images_to_dir(20, path_data+'test/')
-    """
+    ds.copy_images_to_dir('all', path_data+'test2/')
+
     
     """
     ### EXPLORE ILLUMINATION ###
