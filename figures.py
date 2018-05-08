@@ -111,7 +111,8 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
     
     fig_rows = 5
     
-    fig_columns = len(original_and_masked_imgs)
+    fig_columns = min(len(original_and_masked_imgs),8)
+    
     residual = np.empty((original_and_masked_imgs.shape[:3]))
     
     gs = gridspec.GridSpec(fig_rows, fig_columns)
@@ -175,9 +176,8 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
     plt.close(plot)
     return plot
 
-def show_detections(self, *args):
-    # needs testing
-    
+def show_detections(*args):
+        
     rows, columns = len(args), 1 
     
     gs = gridspec.GridSpec(rows, columns)
@@ -187,8 +187,11 @@ def show_detections(self, *args):
     
     for i in range(len(args)):
         ax = plt.subplot(gs[i])
-        #print(args[i])
-        plt.imshow(args[i])
+        
+        if len(args[i].shape)==2:
+            plt.imshow(args[i], cmap='gray')
+        else:
+            plt.imshow(args[i])
         ax.axis('off')
     
     return plot

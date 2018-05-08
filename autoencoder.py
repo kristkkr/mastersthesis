@@ -250,7 +250,8 @@ class Autoencoder(AutoencoderModel):
                     continue
                 
                 if not inpainting_grid==None:
-                    x_batch_masked, x_batch = ds.mask_batch(x, inpainting_grid)
+                    #x_batch_masked, x_batch = ds.mask_batch(x, inpainting_grid)
+                    x_batch_masked, x_batch = ds.mask_batch_randomly(x, inpainting_grid)
                     loss = self.model.train_on_batch(x_batch_masked, x_batch)
                 else:
                     loss = self.model.train_on_batch(x, x)
@@ -269,7 +270,8 @@ class Autoencoder(AutoencoderModel):
                     if x == []:
                         continue
                     if not inpainting_grid==None:
-                        x_batch_masked, x_batch = ds.mask_batch(x, inpainting_grid)
+                        #x_batch_masked, x_batch = ds.mask_batch(x, inpainting_grid)
+                        x_batch_masked, x_batch = ds.mask_batch_randomly(x, inpainting_grid)
                         loss = self.model.test_on_batch(x_batch_masked, x_batch)
                     else:
                         loss = self.model.test_on_batch(x, x)
@@ -280,7 +282,18 @@ class Autoencoder(AutoencoderModel):
                     val_batch += 1
                     val_timestamp_index += self.indexing_iterator
                     
-                self.save_to_directory(loss_history, failed_im_load, epoch, train_batch, train_timestamp_index-self.indexing_iterator, val_timestamp_index-self.indexing_iterator, train_val_ratio, model_freq=100*train_val_ratio, loss_freq=train_val_ratio,  reconstruct_freq_train=100000, reconstruct_freq_val=5*train_val_ratio, inpainting_grid=inpainting_grid, single_im=single_im)
+                self.save_to_directory(loss_history, 
+                                       failed_im_load, 
+                                       epoch, train_batch, 
+                                       train_timestamp_index-self.indexing_iterator, 
+                                       val_timestamp_index-self.indexing_iterator, 
+                                       train_val_ratio, 
+                                       model_freq=100*train_val_ratio, 
+                                       loss_freq=train_val_ratio,  
+                                       reconstruct_freq_train=100000, 
+                                       reconstruct_freq_val=5*train_val_ratio, 
+                                       inpainting_grid=inpainting_grid, 
+                                       single_im=single_im)
                 
     def save_to_directory(self, loss_history, failed_im_load, epoch, batch, train_timestamp_index, val_timestamp_index, train_val_ratio, model_freq, loss_freq, reconstruct_freq_train, reconstruct_freq_val, inpainting_grid=None, single_im=False):
         """
@@ -319,11 +332,6 @@ class Autoencoder(AutoencoderModel):
             
             if not inpainting_grid == None:
                 self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=True)
-            
-            #self.test(dataset = self.dataset, what_data_split='train', timestamp_index=train_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch)
-            #self.test(dataset = self.dataset_reconstruct, what_data_split='val', timestamp_index=0, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)
-        #if (freq_counter+1)%(reconstruct_freq*10) == 0: 
-            #self.test(dataset = self.dataset_reconstruct, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid)    
                        
             
     def test(self, dataset, what_data_split, timestamp_index, numb_of_timestamps, epoch, batch, inpainting_grid, single_im_batch):
@@ -363,7 +371,8 @@ class Autoencoder(AutoencoderModel):
                     plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'-single.jpg')
                     print('Reconstruction single image inpainting saved')
                 else: # same as below.
-                    x_batch_masked,_ = dataset.mask_batch(x, inpainting_grid)
+                    #x_batch_masked,_ = dataset.mask_batch(x, inpainting_grid)
+                    x_batch_masked,_ = dataset.mask_batch_randomly(x, inpainting_grid)
                     y_batch = self.model.predict_on_batch(x_batch_masked)
                     plot = create_reconstruction_plot(self, x, y_batch, x_batch_masked)                    
                     plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
@@ -375,10 +384,7 @@ class Autoencoder(AutoencoderModel):
                 print('Reconstruction regular saved')            
 
             i += self.indexing_iterator
-            
-            
 
-                
     
     def merge_inpaintings(self, y_batch, inpainting_grid):
         """
@@ -405,65 +411,74 @@ class Autoencoder(AutoencoderModel):
             x0 = x0 + mask_shape[1]
         return inpainted
 
-def evaluate(inpainting_grid):
-    """
-    Evaluate model on test data. Same procedure as for single_im_batch in test()
-    """
-    #timestamps = self.dataset.timestamp_list_val[:5]
-    #numb_of_timestamps = len(timestamps)
-    
-    #for i in range(numb_of_timestamps):
-        #x,failed_im_load = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
+    def evaluate(self, inpainting_grid):
+        """
+        Evaluate model on test data. Same procedure as for single_im_batch in test()
+        """
+        #timestamps = self.dataset.timestamp_list_val[:5]
+        #numb_of_timestamps = len(timestamps)
         
-        #for cam_lens_im in range(len(x)):
-    path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test/'
-    for filename in sorted(os.listdir(path_test)): #self.dataset.path_test):
-        if filename.endswith('.jpg'):
-            image = imread(path_test+filename)
-            """
-            x_batch_masked, _ = self.dataset.mask_image(image, inpainting_grid)
-            y_batch = self.model.predict_on_batch(x_batch_masked)
-            inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
-            residual = np.mean(np.abs(np.subtract(image, inpainted)), axis=2)
-            """
+        #for i in range(numb_of_timestamps):
+            #x,failed_im_load = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
             
-            residual = imread(path_test+filename, mode='L')
-            #print(residual.shape)
-            #print(np.amin(residual),np.amax(residual))
-            #Image.fromarray(residual, mode='L').show()
-            
-            threshold = 150
-            threshold_array = threshold*np.ones(residual.shape,dtype=np.uint8)
-            #print(threshold_array.shape)
-            #print(np.amin(threshold_array),np.amax(threshold_array))
-            binary_map = np.greater(residual, threshold_array)
-            #print(binary_map.shape)
-            #print(np.amin(binary_map),np.amax(binary_map))
-            #Image.fromarray(binary_map, mode='L').show()
-            ## evaluate binary_map against GT ##
-             
-            box_tp, box_fn, recall = count_box_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))# self.dataset.IMAGE_EXTENSION
-            pixel_tp, pixel_fp, precision = count_pixel_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))
-            
-            print(filename)
-            print(box_tp, box_fn,'recall=',recall)
-            print(pixel_tp, pixel_fp, 'precision=',precision)
-            ## visual 
-            object_map = map_on_image(image, binary_map)
-            #print(object_map.shape)
-            Image.fromarray(object_map, mode='RGB').show()
-            
-            #figure = show_detections(image, inpainted, residual, object_map)
-            
-            #figure.savefig(self.path_results+'detections-'+str(image)+'.jpg')
-            #print('figsaved')
+            #for cam_lens_im in range(len(x)):
+        path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test2/'
+        for filename in sorted(os.listdir(path_test))[:2]: #self.dataset.path_test):
+            if filename.endswith('.xml'):
+                image = imread(path_test+filename.replace('.xml','.jpg')).astype('float32') / 255.
+                image_batch = np.expand_dims(image, 0)
+                
+                
+                """
+                x_batch_masked, _ = self.dataset.mask_image(image, inpainting_grid)
+                y_batch = self.model.predict_on_batch(x_batch_masked)
+                inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
+                residual = np.mean(np.abs(np.subtract(image, inpainted)), axis=2)
+                """
+                y_batch = self.model.predict_on_batch(image_batch)
+                y = y_batch[0,:]
+                
+                #Image.fromarray(y).show()
+                
+                residual = np.mean(np.abs(np.subtract(image, y)), axis=2)
+                
+                #residual = imread(path_test+filename.replace('.xml','.jpg'), mode='L')
+                #print(residual.shape)
+                #print(np.amin(residual),np.amax(residual))
+                #Image.fromarray(residual, mode='L').show()
+                
+                threshold = 50
+                for threshold in range(50,200,30):
+                    threshold_array = threshold*np.ones(residual.shape,dtype=np.uint8).astype('float32') / 255.
+                    #print(threshold_array.shape)
+                    #print(np.amin(threshold_array),np.amax(threshold_array))
+                    binary_map = np.greater(residual, threshold_array)
+                    #print(binary_map.shape)
+                    #print(np.amin(binary_map),np.amax(binary_map))
+                    #Image.fromarray(binary_map, mode='L').show()
+                    ## evaluate binary_map against GT ##
+                     
+                    box_tp, box_fn, recall = count_box_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))# self.dataset.IMAGE_EXTENSION
+                    pixel_tp, pixel_fp, precision = count_pixel_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))
+                    
+                    print(filename, threshold)
+                    print(box_tp, box_fn,'recall=',recall)
+                    print(pixel_tp, pixel_fp, 'precision=',precision)
+                    ## visual 
+                    object_map = map_on_image(image, binary_map)
+                    #print(object_map.shape)
+                    #Image.fromarray(object_map, mode='RGB').show()
+                    
+                    figure = show_detections(image, y, residual, object_map)
+                    figure.savefig(self.path_results+'detections-threshold'+str(threshold)+'--'+filename.replace('.xml','.jpg'))
+                    print('figsaved')
             
 def count_pixel_detections(binary_map, gt_file):
-    """counts pixel detections tp, tn, fp in binary predicted map with respect to ground truth file. use both background and object classes?"""
+    """counts pixel detections tp, tn, fp in binary predicted map with respect to ground truth files. use both background and object classes?"""
     y,x = binary_map.shape
-    gt_map,_ = read_gt_file(gt_file,(y,x))
+    object_gt_map,_,background_gt_map,_ = read_gt_file(gt_file,(y,x))
+    gt_map = np.logical_or(object_gt_map,background_gt_map)
     
-    #binary_map, gt_map = binary_map/255, gt_map/255
     tp, fp, fn, tn = 0,0,0,0
     for j in range(y):
         for i in range(x):
@@ -486,10 +501,10 @@ def count_pixel_detections(binary_map, gt_file):
 def count_box_detections(binary_map, gt_file):
     """counts box detections. use object box class"""
     y,x = binary_map.shape
-    _, boxes = read_gt_file(gt_file,(y,x))
+    _, object_boxes,_,_ = read_gt_file(gt_file,(y,x))
     #binary_map, gt_map = binary_map/255, gt_map/255
     tp, fp, fn, tn = 0,0,0,0
-    for box in boxes:
+    for box in object_boxes:
         xmin, ymin, xmax, ymax = box[0], box[1], box[2], box[3]
         
         if binary_map[ymin:ymax,xmin:xmax].any() == 1:
@@ -505,22 +520,31 @@ def count_box_detections(binary_map, gt_file):
 from PIL import ImageDraw, Image
 
 def read_gt_file(gt_file,shape):
-    gt_im = Image.fromarray(np.zeros(shape, dtype=np.uint8))#self.dataset.IMAGE_SHAPE)
+    object_gt_map, object_boxes = read_bounding_box_category(gt_file, shape, 'object')
+    background_gt_map, background_boxes = read_bounding_box_category(gt_file, shape, 'background')
+    return object_gt_map, object_boxes, background_gt_map, background_boxes
+    
+def read_bounding_box_category(gt_file, shape, box_category):
+    gt_im = Image.fromarray(np.zeros(shape, dtype=np.uint8)) 
     draw = ImageDraw.Draw(gt_im)
     tree = ET.parse(gt_file)
     root = tree.getroot()
     boxes = []
-    for bbox in root.iter('bndbox'):
-        box = []
-        for child in bbox:
-            box.append(int(child.text))
-        draw.rectangle(box,fill=255)
-        boxes.append(box)
-    gt_map = np.asarray(gt_im, dtype=np.uint8)/255
-    #Image.fromarray(gt_map, mode='L').show()
-    return gt_map, boxes
+    for box_object in root.findall('object'):
+        if box_object.find('name').text == box_category:
+            for bbox in box_object.iter('bndbox'):
+                box = []
+                for child in bbox:
+                    box.append(int(child.text))
+        
+                draw.rectangle(box,fill=255)
+                boxes.append(box)
+    gt_map = np.asarray(gt_im, dtype=np.uint8).astype('float32') / 255.
     
-def map_on_image(image, binary_map):
+    return gt_map, boxes
+
+def map_on_image(im, binary_map):
+    image = np.copy(im)
     x,y,_ = image.shape
     mask_color = np.amax(image)
     for i in range(x):
@@ -550,9 +574,9 @@ if __name__ == "__main__":
     from datahandler import Dataset
 
     
-    path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test/2017-12-20-07_13_30(3, 1).xml'
+    path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test2/2017-10-22-11_11_09(1, 1).xml'
     #binary_map,_ = read_gt_file(path_test,(1920,2560))
-    binary_map = np.zeros((1920,2560))
+    #binary_map = np.zeros((1920,2560))
     evaluate((3,4))
     #Image.fromarray(binary_map, mode='L').show()
     #tp, fp, fn, tn = count_pixel_detections(binary_map, path_test)
