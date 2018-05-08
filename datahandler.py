@@ -158,6 +158,7 @@ class Dataset():
             try:
                 illumination = int(np.mean(dl.load_image(self.timestamp_list[i], dl.TYPE_CAMERA, (3,1))))
             except:
+                i = i+1 
                 continue
             if illumination in remove_illumination_range:
                 freq_counter +=1
@@ -401,7 +402,7 @@ class Dataset():
                 
 if __name__ == "__main__":
     
-    
+    """
     ### TESTS ###
     #cams_lenses = [(1,1), (3,1)]
     ds = Dataset('all')
@@ -415,8 +416,8 @@ if __name__ == "__main__":
     #image = batch[0,:]
     #masked_images = ds.mask_image(image,3,3)
     Image.fromarray(np.uint8(masked_images[0]*255),'RGB').show()
-    
     """
+    
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
     ds.path_timestamps = 'datasets/new2704/speed>6/interval_5sec/'
@@ -428,7 +429,7 @@ if __name__ == "__main__":
     #ds.remove_hour_from_timestamplist([1,2,3,4,20,21,22,23], 2)
     ds.remove_timestamp_illumination(range(50),2)
     ds.write_timestamps_file(ds.path_timestamps+'removed_illumination/data_timestamp_list_val')
-    """
+    
     """
     ### MOVE TEST DATA TO DIRECTORY ###
     ds = Dataset([(1,1),(3,1)])
