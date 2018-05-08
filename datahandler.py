@@ -255,13 +255,56 @@ class Dataset():
                 except:
                     break
                 i += 1
-                                
+                
                 ulc = (ulc[0],ulc[1]+mask_shape[0])
             ulc = (ulc[0]+mask_shape[1],0)
         
         return masked_batch.astype('float32') / 255., batch
         
+    def mask_batch_randomly(self, batch, grid):
+        """
+        Mask a 'batch' with 'grid'. Allows prod(grid)>batch size - not all masks are included. 
+        """
+        masked_batch = np.copy(batch)
+        rows, columns = grid 
+        mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
         
+        try:
+            self.ulc
+        except:
+            self.ulc = self.compute_ulc(grid)
+            #print(self.ulc)
+            
+        shuffle(self.ulc)
+        ulc = self.ulc
+        #print(ulc)
+        
+        for i in range(len(batch)):
+            #print(ulc[i], (ulc[i][0]+mask_shape[1],ulc[i][1]+mask_shape[0]))
+            rectangle_coordinates = [ulc[i], (ulc[i][0]+mask_shape[1],ulc[i][1]+mask_shape[0])]
+            im = Image.fromarray(np.uint8(batch[i]*255),'RGB') # remove scaleing
+            draw = ImageDraw.Draw(im)
+            draw.rectangle(rectangle_coordinates,fill=0)
+            masked_batch[i] = np.asarray(im, dtype=np.uint8)
+            
+        return masked_batch.astype('float32') / 255., batch    
+
+    def compute_ulc(self,grid):
+        """ Computes all ulc for a grid in a terrible way."""
+        rows, columns = grid 
+        mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
+        
+        ulc_single = (0,0)
+        ulc = []
+        i=0
+        for x in range(columns):
+            for y in range(rows):
+                ulc.append(ulc_single)                                            
+                ulc_single = (ulc_single[0],ulc_single[1]+mask_shape[0])
+                
+            ulc_single = (ulc_single[0]+mask_shape[1],0)
+            i +=1
+        return ulc
         
     def write_timestamps_file(self, filename):
         #with open(filename,'wb') as fp:
@@ -358,18 +401,21 @@ class Dataset():
                 
 if __name__ == "__main__":
     
-    """
+    
     ### TESTS ###
     #cams_lenses = [(1,1), (3,1)]
     ds = Dataset('all')
     
     ds.read_timestamps_file('datasets/all/interval_60min/timestamps.npy')
     ds.images_per_timestamp = len(ds.cams_lenses)
-    batch = ds.load_batch([ds.timestamp_list[0]])
-    image = batch[0,:]
-    masked_images = ds.mask_image(image,3,3)
-    #Image.fromarray(np.uint8(masked_images[4]*255),'RGB').show()
-    """
+    batch,_ = ds.load_batch([ds.timestamp_list[0]], [])
+    #print(batch.shape)
+    #masked,_ = ds.mask_batch(batch, grid=(3,3))
+    masked_images,_ = ds.mask_batch_randomly(batch[:2], grid=(2,1))
+    #image = batch[0,:]
+    #masked_images = ds.mask_image(image,3,3)
+    Image.fromarray(np.uint8(masked_images[0]*255),'RGB').show()
+    
     """
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
@@ -383,13 +429,13 @@ if __name__ == "__main__":
     ds.remove_timestamp_illumination(range(50),2)
     ds.write_timestamps_file(ds.path_timestamps+'removed_illumination/data_timestamp_list_val')
     """
-    
+    """
     ### MOVE TEST DATA TO DIRECTORY ###
     ds = Dataset([(1,1),(3,1)])
     path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/' 
     ds.timestamp_list_test = np.load(path_data+'timestamps_list_test.npy')
     ds.copy_images_to_dir('all', path_data+'test2/')
-
+    """
     
     """
     ### EXPLORE ILLUMINATION ###
