@@ -10,6 +10,7 @@ import os
 
 import numpy as np
 from scipy.ndimage import imread
+import scipy.ndimage
 #from scipy.imageio import imread
 
 from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape
@@ -17,7 +18,7 @@ from keras.models import Model, Sequential
 from keras.callbacks import Callback#, EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.backend import tf
 from keras.optimizers import Adam
-from keras import backend as K
+#from keras import backend as K
 from keras.preprocessing.image import ImageDataGenerator
 
 import xml.etree.ElementTree as ET
@@ -32,57 +33,45 @@ class AutoencoderModel:
     def create_fca(self):
         
         # conv layer parameters
-        conv_kernel_size1 = 5
-        conv_strides1 = 2
+        conv_kernel_size = 5
+        conv_strides = 2
                         
-        #filters = [8,16,32,64,128,256,512,1024] 
+        filters = [8,16,32,64,128,256,512] 
         #filters = [2**n for n in range(3,16)] 
-        filters = [8, 8*3, 8*3**2, 8*3**3, 8*3**4, 8*3**5, 8*3**6]
+        #filters = [8, 8*3, 8*3**2, 8*3**3, 8*3**4, 8*3**5, 8*3**6]
+        
+        conv_layers_pure = 2
         
         input_image = Input(shape=self.IMAGE_SHAPE) 
+        x = input_image
         
-        x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(input_image)
-        x = LeakyReLU()(x)
-        x = BatchNormalization()(x)
-        x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
-        x = LeakyReLU()(x)
-        x = BatchNormalization()(x)
-        x = Conv2D(filters=filters[2], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
-        x = LeakyReLU()(x)
-        x = BatchNormalization()(x)
-        x = Conv2D(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
-        x = LeakyReLU()(x)
-        x = BatchNormalization()(x)   
-        x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
-        x = LeakyReLU()(x)
-        x = BatchNormalization()(x)           
-                
-        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
-        x = LeakyReLU()(x)
-        x = BatchNormalization()(x)   
-        """
-        x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size1, strides=conv_strides1, padding = 'same')(x)
-        x = LeakyReLU()(x)
-        x = BatchNormalization()(x)  
+        for i in range(len(filters)):
+        
+            x = Conv2D(filters=filters[i], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+            x = LeakyReLU()(x)
+            x = BatchNormalization()(x)
+        
+        for i in range(conv_layers_pure):
+            x = Conv2D(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, padding = 'same')(x)
+            x = LeakyReLU()(x)
+            x = BatchNormalization()(x)
+        
+        
         ### BOTTLENECK ###            
-        x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)
-        """
-        x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)
-            
-        x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)
-        x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)
-        x = Conv2DTranspose(filters=filters[1], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)        
-        x = Conv2DTranspose(filters=filters[0], kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)
-        x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size1, strides=conv_strides1, activation = 'sigmoid', padding = 'same')(x)
-    
+        for i in range(conv_layers_pure):
+            x = Conv2DTranspose(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, activation = 'relu', padding = 'same')(x)
+            x = BatchNormalization()(x)
+        
+        for i in sorted(range(len(filters[:-1])), reverse=True):
+            x = Conv2DTranspose(filters=filters[i], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
+            x = BatchNormalization()(x)             
+        
+        x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
+        
+        
         autoencoder = Model(input_image, x)
-        autoencoder.compile(optimizer='adam', loss='mean_absolute_error')
+        optimizer = Adam(lr=0.0001)
+        autoencoder.compile(optimizer=optimizer, loss='mean_absolute_error')
     
         self.model = autoencoder
     
@@ -91,13 +80,14 @@ class AutoencoderModel:
         Model from the paper Context Encoders.
         """
         resized_shape = (384, 512)
+        resize_method = tf.image.ResizeMethod.BILINEAR
         conv_kernel_size = 5 #(4,4)
         conv_strides = 2
         filters = [128, 256, 512, 1024, 2096, 4192] #64, 128, 
         
         input_image = Input(shape=self.IMAGE_SHAPE)
-        x = Lambda(lambda image: tf.image.resize_images(image, resized_shape))(input_image)
-
+        x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)
+        resized_input = x
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)        
@@ -150,11 +140,11 @@ class AutoencoderModel:
 
         x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
         
-        x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2]))(x)
+        x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(resized_input)
         
         autoencoder = Model(input_image, x)
         optimizer = Adam()#lr=0.0001
-        autoencoder.compile(optimizer=optimizer, loss='mean_absolute_error')
+        autoencoder.compile(optimizer=optimizer, loss='mean_squared_error')
     
         self.model = autoencoder        
     
@@ -290,8 +280,8 @@ class Autoencoder(AutoencoderModel):
                                        train_val_ratio, 
                                        model_freq=100*train_val_ratio, 
                                        loss_freq=train_val_ratio,  
-                                       reconstruct_freq_train=100000, 
-                                       reconstruct_freq_val=5*train_val_ratio, 
+                                       reconstruct_freq_train=1000000, 
+                                       reconstruct_freq_val=10*train_val_ratio, 
                                        inpainting_grid=inpainting_grid, 
                                        single_im=single_im)
                 
@@ -459,7 +449,7 @@ class Autoencoder(AutoencoderModel):
                     ## evaluate binary_map against GT ##
                      
                     box_tp, box_fn, recall = count_box_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))# self.dataset.IMAGE_EXTENSION
-                    pixel_tp, pixel_fp, precision = count_pixel_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))
+                    pixel_tp, pixel_fp, precision = count_clustered_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))
                     
                     print(filename, threshold)
                     print(box_tp, box_fn,'recall=',recall)
@@ -469,7 +459,7 @@ class Autoencoder(AutoencoderModel):
                     #print(object_map.shape)
                     #Image.fromarray(object_map, mode='RGB').show()
                     
-                    figure = show_detections(image, y, residual, object_map)
+                    figure = show_detections(image, y, residual, binary_map, object_map)
                     figure.savefig(self.path_results+'detections-threshold'+str(threshold)+'--'+filename.replace('.xml','.jpg'))
                     print('figsaved')
             
@@ -492,6 +482,29 @@ def count_pixel_detections(binary_map, gt_file):
                     fn +=1
                 else:
                     tn +=1
+    try:
+        precision = tp/(tp+fp)
+    except:
+        precision = 'NaN'
+    return tp, fp, precision
+
+def count_clustered_detections(binary_map, gt_file):
+    """counts clustered detections tp, tn, fp in binary predicted map with respect to ground truth files"""
+    y,x = binary_map.shape
+    object_gt_map,_,background_gt_map,_ = read_gt_file(gt_file,(y,x))
+    gt_map = np.logical_or(object_gt_map,background_gt_map)
+    
+    labeled_binary_map,_ = scipy.ndimage.label(binary_map) #label each clustered detection
+    
+    object_slices = scipy.ndimage.find_objects(labeled_binary_map)
+    
+    tp, fp = 0,0
+    for object_slice in object_slices:
+        if gt_map[object_slice].any() == 1:
+            tp +=1
+        else:
+            fp +=1
+
     try:
         precision = tp/(tp+fp)
     except:
@@ -552,6 +565,11 @@ def map_on_image(im, binary_map):
             if binary_map[i,j] == 1:
                 image[i,j,:] = [mask_color,0,0]
     return image
+
+def scale_range(array):
+    """ scale range from [-1,1] to [0,1]"""
+    return (array+1)/2
+    
         
 class LossHistory(Callback):
     def on_train_begin(self, path_results, log={}):
