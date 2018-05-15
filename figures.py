@@ -7,16 +7,51 @@ Created on Fri Dec  1 09:08:28 2017
 
 """
 #import pickle
+import os
+import json
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+
+import seaborn as sns
+import pandas as pd
+
 from PIL import Image
 
 
 from keras.preprocessing.image import ImageDataGenerator
 
+def plot_evaluation(path_results, n_images):
+    
+    recalls, precisions, false_positives = [],[],[]
+    
+    for metric_filename in os.listdir(path_results):
+        if metric_filename.endswith('.txt'):
+            with open(path_results+metric_filename, 'r') as fp:
+                metrics = json.load(fp)
+                
+            recalls.append(metrics['recall'])
+            precisions.append(metrics['precision'])
+            false_positives.append(metrics['cluster_fp']//n_images)
+    
+    df = pd.DataFrame({'Recall': recalls, 'Precision': precisions, 'Mean false positives':false_positives})
+    
+    sns.regplot('Precision', 'Recall', df, fit_reg=False)
+    plt.xlim([0,1])
+    plt.ylim([0,1])
+    plt.savefig(path_results+'roc.pdf', format='pdf')
 
-def plot_loss_history(path_results, train_val_ratio, single_im, n):
+    plt.figure()
+    sns.regplot('Mean false positives', 'Recall', df, fit_reg=False)
+    _,xmax = plt.xlim()
+    plt.xlim([0,xmax])
+    plt.ylim([0,1])
+    plt.savefig(path_results+'recall-fp.pdf', format='pdf')    
+    
+            
+
+def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.1):
     """
     Saves a plot of loss history for in 'path_'results with a 'n' moving average.
     """
@@ -44,6 +79,7 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n):
     else:
         plt.xlabel('Time [epoch]')
     plt.ylabel('Loss')
+    plt.ylim(0,ylim)
     plt.savefig(path_results+'loss_history_avg_n'+str(n)+'.eps', format='eps')
     plt.close()
         
@@ -160,13 +196,13 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
         row += 1
         """            
         if i == 0:
-            inpainted = autoencoder.merge_inpaintings(reconstructed_imgs, inpainting_grid)
+            inpainted = autoencoder.merge_inpaintings(reconstructed_imgs[1:], inpainting_grid)
             ax = plt.subplot(gs[i+row*fig_columns])
             plt.imshow(inpainted, cmap='gray')            
             ax.set_ylabel('Inpainted', rotation=rotation, fontsize=font_size)
             row += 1
             
-            inpainted_residual = np.abs(np.subtract(inpainted, original_and_masked_imgs[0]))
+            inpainted_residual = np.mean(np.abs(np.subtract(inpainted, original_and_masked_imgs[0])), axis=2)
             ax = plt.subplot(gs[i+row*fig_columns])
             plt.imshow(inpainted_residual, cmap='gray')            
             ax.set_ylabel('Inpainted \n residual', rotation=rotation, fontsize=font_size)
@@ -182,7 +218,7 @@ def show_detections(*args):
     
     gs = gridspec.GridSpec(rows, columns)
     gs.update(wspace=0.02, hspace=0.02)
-    scale=300
+    scale=30
     plot = plt.figure(figsize=(2560*columns//scale,1920*rows//scale))
     
     for i in range(len(args)):

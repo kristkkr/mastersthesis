@@ -11,7 +11,8 @@ import os
 import numpy as np
 from scipy.ndimage import imread
 import scipy.ndimage
-#from scipy.imageio import imread
+import json
+
 
 from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape
 from keras.models import Model, Sequential
@@ -37,10 +38,9 @@ class AutoencoderModel:
         conv_strides = 2
                         
         filters = [8,16,32,64,128,256,512] 
-        #filters = [2**n for n in range(3,16)] 
-        #filters = [8, 8*3, 8*3**2, 8*3**3, 8*3**4, 8*3**5, 8*3**6]
         
         conv_layers_pure = 2
+        dilation = 1
         
         input_image = Input(shape=self.IMAGE_SHAPE) 
         x = input_image
@@ -52,14 +52,14 @@ class AutoencoderModel:
             x = BatchNormalization()(x)
         
         for i in range(conv_layers_pure):
-            x = Conv2D(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, padding = 'same')(x)
+            x = Conv2D(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, padding = 'same', dilation_rate=dilation)(x)
             x = LeakyReLU()(x)
             x = BatchNormalization()(x)
         
         
         ### BOTTLENECK ###            
         for i in range(conv_layers_pure):
-            x = Conv2DTranspose(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, activation = 'relu', padding = 'same')(x)
+            x = Conv2DTranspose(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, activation = 'relu', padding = 'same', dilation_rate=dilation)(x)
             x = BatchNormalization()(x)
         
         for i in sorted(range(len(filters[:-1])), reverse=True):
@@ -386,7 +386,7 @@ class Autoencoder(AutoencoderModel):
         inpainted = np.empty(self.dataset.IMAGE_SHAPE)
         
         x0, y0 = 0,0
-        i = 1
+        i = 0
         for x in range(inpainting_grid[1]):
             x = x*mask_shape[1]
             for y in range(inpainting_grid[0]):
@@ -401,67 +401,60 @@ class Autoencoder(AutoencoderModel):
             x0 = x0 + mask_shape[1]
         return inpainted
 
-    def evaluate(self, inpainting_grid):
+    def evaluate(self, inpainting_grid, visual):
         """
         Evaluate model on test data. Same procedure as for single_im_batch in test()
         """
-        #timestamps = self.dataset.timestamp_list_val[:5]
-        #numb_of_timestamps = len(timestamps)
         
-        #for i in range(numb_of_timestamps):
-            #x,failed_im_load = self.dataset.load_batch(timestamps[i:i+1], failed_im_load=[])
-            
-            #for cam_lens_im in range(len(x)):
-        path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test2/'
-        for filename in sorted(os.listdir(path_test))[:2]: #self.dataset.path_test):
-            if filename.endswith('.xml'):
-                image = imread(path_test+filename.replace('.xml','.jpg')).astype('float32') / 255.
-                image_batch = np.expand_dims(image, 0)
-                
-                
-                """
-                x_batch_masked, _ = self.dataset.mask_image(image, inpainting_grid)
-                y_batch = self.model.predict_on_batch(x_batch_masked)
-                inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
-                residual = np.mean(np.abs(np.subtract(image, inpainted)), axis=2)
-                """
-                y_batch = self.model.predict_on_batch(image_batch)
-                y = y_batch[0,:]
-                
-                #Image.fromarray(y).show()
-                
-                residual = np.mean(np.abs(np.subtract(image, y)), axis=2)
-                
-                #residual = imread(path_test+filename.replace('.xml','.jpg'), mode='L')
-                #print(residual.shape)
-                #print(np.amin(residual),np.amax(residual))
-                #Image.fromarray(residual, mode='L').show()
-                
-                threshold = 50
-                for threshold in range(50,200,30):
-                    threshold_array = threshold*np.ones(residual.shape,dtype=np.uint8).astype('float32') / 255.
-                    #print(threshold_array.shape)
-                    #print(np.amin(threshold_array),np.amax(threshold_array))
-                    binary_map = np.greater(residual, threshold_array)
-                    #print(binary_map.shape)
-                    #print(np.amin(binary_map),np.amax(binary_map))
-                    #Image.fromarray(binary_map, mode='L').show()
-                    ## evaluate binary_map against GT ##
-                     
-                    box_tp, box_fn, recall = count_box_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))# self.dataset.IMAGE_EXTENSION
-                    pixel_tp, pixel_fp, precision = count_clustered_detections(binary_map, path_test+filename.replace('.jpg', '.xml'))
+        
+        for threshold in range(200,201,30): #should be the outermost loop
+            metrics = {'box_tp': 0, 'box_fn': 0, 'recall':'NaN', 'cluster_tp':0, 'cluster_fp':0, 'precision':'NaN'}
+            #threshold_array = threshold*np.ones((self.IMAGE_SHAPE[:2])+(,1),dtype=np.uint8).astype('float32') / 255.
+            for filename in sorted(os.listdir(self.dataset.path_test)): #self.dataset.path_test):
+                if filename.endswith('.xml'):
+                    image = imread(self.dataset.path_test+filename.replace('.xml','.jpg')).astype('float32') / 255.
+                    #image_batch = np.expand_dims(image, 0)
+    
+                    x_batch_masked, _ = self.dataset.mask_image(image, inpainting_grid)
+                    y_batch = self.model.predict_on_batch(x_batch_masked)
+                    inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
+                    residual = np.mean(np.abs(np.subtract(image, inpainted)), axis=2) #mean of channels or RGB->grayscale conversion?
+               
+                    #binary_map = np.greater(residual, threshold_array)
+                    binary_map = residual > threshold/255. #*np.ones(residual.shape,dtype=np.uint8).astype('float32') / 255.
+                    
+                    box_tp, box_fn, recall = count_box_detections(binary_map, self.dataset.path_test+filename.replace('.jpg', '.xml'))# self.dataset.IMAGE_EXTENSION
+                    cluster_tp, cluster_fp, precision = count_clustered_detections(binary_map, self.dataset.path_test+filename.replace('.jpg', '.xml'))
+
+                    metrics = update_metrics(metrics, box_tp, box_fn, recall, cluster_tp, cluster_fp, precision)
                     
                     print(filename, threshold)
                     print(box_tp, box_fn,'recall=',recall)
-                    print(pixel_tp, pixel_fp, 'precision=',precision)
-                    ## visual 
-                    object_map = map_on_image(image, binary_map)
-                    #print(object_map.shape)
-                    #Image.fromarray(object_map, mode='RGB').show()
-                    
-                    figure = show_detections(image, y, residual, binary_map, object_map)
-                    figure.savefig(self.path_results+'detections-threshold'+str(threshold)+'--'+filename.replace('.xml','.jpg'))
-                    print('figsaved')
+                    print(cluster_tp, cluster_fp, 'precision=',precision)
+    
+                    if visual:
+                        object_map = map_on_image(image, binary_map)
+                        figure = show_detections(image, inpainted, residual, binary_map, object_map)
+                        figure.savefig(self.path_results+'detections-threshold'+str(threshold)+'--'+filename.replace('.xml','.jpg'))
+                        print('figsaved')
+                        
+                    with open(self.path_results+'metrics-threshold'+str(threshold)+'.txt', 'w') as fp:
+                        json.dump(metrics,fp)
+
+def update_metrics(metrics, box_tp, box_fn, recall, cluster_tp, cluster_fp, precision):
+    metrics['box_tp'] += box_tp
+    metrics['box_fn'] += box_fn
+    try:
+        metrics['recall'] = round(metrics['box_tp']/(metrics['box_tp']+metrics['box_fn']),4)
+    except:
+        metrics['recall'] = 'NaN'
+    metrics['cluster_tp'] += cluster_tp
+    metrics['cluster_fp'] += cluster_fp
+    try:
+        metrics['precision'] = round(metrics['cluster_tp']/(metrics['cluster_tp']+metrics['cluster_fp']),4)
+    except:
+        metrics['precision'] = 'NaN'  
+    return metrics
             
 def count_pixel_detections(binary_map, gt_file):
     """counts pixel detections tp, tn, fp in binary predicted map with respect to ground truth files. use both background and object classes?"""
@@ -483,13 +476,13 @@ def count_pixel_detections(binary_map, gt_file):
                 else:
                     tn +=1
     try:
-        precision = tp/(tp+fp)
+        precision = round(tp/(tp+fp),4)
     except:
         precision = 'NaN'
     return tp, fp, precision
 
 def count_clustered_detections(binary_map, gt_file):
-    """counts clustered detections tp, tn, fp in binary predicted map with respect to ground truth files"""
+    """counts clustered detections tp, fp in binary predicted map with respect to ground truth files"""
     y,x = binary_map.shape
     object_gt_map,_,background_gt_map,_ = read_gt_file(gt_file,(y,x))
     gt_map = np.logical_or(object_gt_map,background_gt_map)
@@ -506,7 +499,7 @@ def count_clustered_detections(binary_map, gt_file):
             fp +=1
 
     try:
-        precision = tp/(tp+fp)
+        precision = round(tp/(tp+fp),4)
     except:
         precision = 'NaN'
     return tp, fp, precision
@@ -516,7 +509,7 @@ def count_box_detections(binary_map, gt_file):
     y,x = binary_map.shape
     _, object_boxes,_,_ = read_gt_file(gt_file,(y,x))
     #binary_map, gt_map = binary_map/255, gt_map/255
-    tp, fp, fn, tn = 0,0,0,0
+    tp,fn= 0,0
     for box in object_boxes:
         xmin, ymin, xmax, ymax = box[0], box[1], box[2], box[3]
         
@@ -525,7 +518,7 @@ def count_box_detections(binary_map, gt_file):
         else:
             fn +=1
     try:
-        recall = tp/(tp+fn)    
+        recall = round(tp/(tp+fn),4)
     except:
         recall = 'NaN'
     return tp, fn, recall
@@ -563,7 +556,10 @@ def map_on_image(im, binary_map):
     for i in range(x):
         for j in range(y):
             if binary_map[i,j] == 1:
-                image[i,j,:] = [mask_color,0,0]
+                #image[i,j,:] = [mask_color,0,0]
+                image[i,j,0] = mask_color
+                image[i,j,1] = 0
+                image[i,j,2] = 0
     return image
 
 def scale_range(array):

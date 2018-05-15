@@ -93,7 +93,7 @@ class Dataset():
         self.timestamp_list_val = self.timestamp_list[int(size*split_frac[0]):int(size*sum(split_frac[0:2]))]
         self.timestamp_list_test = self.timestamp_list[int(size*sum(split_frac[0:2])):size]
     
-    def select_subset(self, t_start=None, t_end=None, min_speed=None, targets_ais_min=None, max_range=None):
+    def select_subset(self, t_start=None, t_end=None, min_speed=None, max_speed=None, targets_ais_min=None, max_range=None):
         """ 
         The arguments 't_start' and 't_end' is the start and end of the time t.
         'min_speed'
@@ -116,6 +116,9 @@ class Dataset():
             elif min_speed != None:
                 if self.get_speed(dl,timestamp) > min_speed:
                     self.timestamp_list.append(timestamp)
+            elif max_speed != None:
+                if self.get_speed(dl,timestamp) < max_speed:
+                    self.timestamp_list.append(timestamp)                    
             elif targets_ais_min != None:
                 targets = dl.get_ais_targets(timestamp, own_pos=self.get_pos(dl, timestamp), max_range=max_range) #also returns ownship
                 
@@ -125,7 +128,7 @@ class Dataset():
 
             t += 1     
             if len(self.timestamp_list)%10 == 0:
-                print(t,'/',len(tl))
+                print(len(self.timestamp_list),'/',len(tl))
             
         
                     
@@ -326,14 +329,23 @@ class Dataset():
         """
         Returns histogram of attributes of dataset
         """
-        dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
-        speeds = []
-        for timestamp in self.timestamp_list:
-            speeds.append(self.get_speed(dl, timestamp))
-            if len(speeds)%10 == 0:
-                print(len(speeds))
-                
-        sns.distplot(speeds, rug=True)
+        try:
+            speeds = np.load(self.path_timestamps+'speeds.npy')
+            print('Speeds loaded')
+        except:
+            dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
+            speeds = []
+            for timestamp in self.timestamp_list:
+                speeds.append(self.get_speed(dl, timestamp))
+                if len(speeds)%10 == 0:
+                    print(len(speeds))
+        
+        
+        #fig, ax = plt.subplots()
+        #ax.set(yscale="log")
+        sns.distplot(speeds, kde=False)
+        plt.ylabel('Number of examples')
+        plt.xlabel('Speed [m/s]')
         plt.savefig(self.path_timestamps+'speeds_hist.pdf', format='pdf')
         np.save(self.path_timestamps+'speeds.npy', speeds)
     
@@ -341,7 +353,7 @@ class Dataset():
         
         dfname = 'illumination'
                 
-        hourname, illuminationname = 'Hour of day', 'Illumination intensity'
+        hourname, illuminationname = 'Hour of day', 'Mean illumination intensity'
         try:
             df = pd.read_pickle(self.path_timestamps+dfname)    
             print('Dataframe', dfname, 'loaded')
@@ -358,14 +370,26 @@ class Dataset():
 
             df = pd.DataFrame({hourname: hour_of_day, illuminationname: mean_illumination})
             df.to_pickle(self.path_timestamps+dfname)
-            
-        figkind = 'hex'
-        figname = dfname+figkind
-        sns.jointplot(x=hourname, y=illuminationname, data=df, kind=figkind, stat_func=None, marginal_kws=dict(bins=24), xlim = (0,24), ylim=(0,255))
         
+        figkind='hex'
+        figname = 'illumination'+figkind
+        sns.jointplot(x=hourname, y=illuminationname, data=df, kind=figkind, stat_func=None, ratio = 3,  marginal_kws=dict(bins=24), xlim=(0,24), ylim=(0,255))
+        plt.savefig(self.path_timestamps+figname+'2.pdf', format='pdf')
+        """
+        figname = 'hist-illumination'
+        plt.figure()
+        sns.distplot(df[illuminationname], kde=False, rug=False)
+        plt.xlim([0,255])
+        plt.ylabel('Number of examples')
         plt.savefig(self.path_timestamps+figname+'.pdf', format='pdf')
-        
-        
+                
+        figname = 'hist-hours'
+        plt.figure()
+        sns.distplot(df[hourname], bins=24, kde=False, rug=False)
+        plt.xlim([0,24])
+        plt.ylabel('Number of examples')
+        plt.savefig(self.path_timestamps+figname+'.pdf', format='pdf')        
+        """
     def get_speed(self, dl, timestamp):
         vel = dl.get_seapath_data(timestamp)['velocity']
         return np.linalg.norm(vel)
@@ -418,56 +442,42 @@ if __name__ == "__main__":
     Image.fromarray(np.uint8(masked_images[0]*255),'RGB').show()
     """
     
+    """
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/new2704/speed>6/interval_5sec/'
-    ds.read_timestamps_file(ds.path_timestamps+'data_timestamp_list_val.npy')
+    ds.path_timestamps = 'datasets/new2704/all/interval_30min/'
+    ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
-    #ds.select_subset(min_speed=6)
+    ds.select_subset(max_speed=6)
     #ds.select_subset(targets_ais_min=2, max_range=1000)
     #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
     #ds.remove_hour_from_timestamplist([1,2,3,4,20,21,22,23], 2)
-    ds.remove_timestamp_illumination(range(50),2)
-    ds.write_timestamps_file(ds.path_timestamps+'removed_illumination/data_timestamp_list_val')
-    
+    #ds.remove_timestamp_illumination(range(50),2)
+    ds.write_timestamps_file('datasets/new2704/speed<6/timestamps')
+    """
     """
     ### MOVE TEST DATA TO DIRECTORY ###
     ds = Dataset([(1,1),(3,1)])
-    path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/' 
-    ds.timestamp_list_test = np.load(path_data+'timestamps_list_test.npy')
-    ds.copy_images_to_dir('all', path_data+'test2/')
+    path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/speed<6/' 
+    ds.timestamp_list_test = np.load(path_data+'timestamps.npy')
+    ds.copy_images_to_dir('all', '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/speed<6/')
     """
     
-    """
+    
     ### EXPLORE ILLUMINATION ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/new2704/all/interval_30min/removed_hours/'
+    ds.path_timestamps = 'datasets/new2704/all/interval_30min/'
     ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     ds.explore_illumination()
-    """
     
     
+    
     """
-    ### LOAD DATASET ###
+    ### LOAD ENTIRE DATASET ###
     ds = Dataset('all')
     ds.get_all_timestamps_list()
     ds.write_timestamps_file('datasets/new2704/all/interval_1sec/timestamps')
     """
     
-    #print(ds.timestamp_list)
+
     
-    """
-    ### load changing batch size testing ###
-    path_results = '/home/kristoffer/Documents/mastersthesis/results/ex6/'
-    ds = Dataset(cams_lenses = [(1,1),(3,1)])
-    ds.timestamp_list_train = np.load(path_results+'data_timestamp_list_train.npy')
-    
-    index = 183*4
-    indices = range(index,index+4)
-    #print(len(ds.timestamp_list_train))
-    print(ds.timestamp_list_train[indices])
-    
-    batch = ds.load_batch(ds.timestamp_list_train[indices])
-    print(batch.shape)
-    
-    """
