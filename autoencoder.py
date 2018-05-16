@@ -14,7 +14,7 @@ import scipy.ndimage
 import json
 
 
-from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape
+from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape, add
 from keras.models import Model, Sequential
 from keras.callbacks import Callback#, EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.backend import tf
@@ -45,54 +45,12 @@ class AutoencoderModel:
         input_image = Input(shape=self.IMAGE_SHAPE) 
         x = input_image
         
-        for i in range(len(filters)):
-        
-            x = Conv2D(filters=filters[i], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
-            x = LeakyReLU()(x)
-            x = BatchNormalization()(x)
-        
-        for i in range(conv_layers_pure):
-            x = Conv2D(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, padding = 'same', dilation_rate=dilation)(x)
-            x = LeakyReLU()(x)
-            x = BatchNormalization()(x)
-        
-        
-        ### BOTTLENECK ###            
-        for i in range(conv_layers_pure):
-            x = Conv2DTranspose(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, activation = 'relu', padding = 'same', dilation_rate=dilation)(x)
-            x = BatchNormalization()(x)
-        
-        for i in sorted(range(len(filters[:-1])), reverse=True):
-            x = Conv2DTranspose(filters=filters[i], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
-            x = BatchNormalization()(x)             
-        
-        x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
-        
-        
-        autoencoder = Model(input_image, x)
-        optimizer = Adam(lr=0.0001)
-        autoencoder.compile(optimizer=optimizer, loss='mean_absolute_error')
-    
-        self.model = autoencoder
-    
-    def create_context_encoder(self):
-        """
-        Model from the paper Context Encoders.
-        """
-        resized_shape = (384, 512)
-        resize_method = tf.image.ResizeMethod.BILINEAR
-        conv_kernel_size = 5 #(4,4)
-        conv_strides = 2
-        filters = [128, 256, 512, 1024, 2096, 4192] #64, 128, 
-        
-        input_image = Input(shape=self.IMAGE_SHAPE)
-        x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)
-        resized_input = x
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)        
 
         x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        skip2 = x
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)
         
@@ -101,52 +59,69 @@ class AutoencoderModel:
         x = BatchNormalization()(x)
         
         x = Conv2D(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        skip4 = x
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)
         
         x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)     
-        """
+        
         x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        skip6 = x
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)      
         
         x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
-        x = BatchNormalization()(x)     
-        """
-        #x = Lambda(self.channel_wise_dense_layer_tensorflow, arguments={'name': "channelwisedense"})(x)
-        #x = LeakyReLU()(x)
-        #x = BatchNormalization()(x)   
-        """
-        x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)   
+        x = BatchNormalization()(x)
         
-        x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)   
-        """
-        x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)        
+        for i in range(conv_layers_pure):
+            x = Conv2D(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, padding = 'same', dilation_rate=dilation)(x)
+            x = LeakyReLU()(x)
+            x = BatchNormalization()(x)
+        ### BOTTLENECK ###            
+        for i in range(conv_layers_pure):
+            x = Conv2DTranspose(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, activation = 'relu', padding = 'same', dilation_rate=dilation)(x)
+            x = BatchNormalization()(x)
         
-        x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)        
+        x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = add([skip6, x])
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
 
-        x = Conv2DTranspose(filters=filters[1], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
-        x = BatchNormalization()(x)        
-        
-        x = Conv2DTranspose(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, activation = 'relu', padding = 'same')(x)
+        x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = add([skip4, x])
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2DTranspose(filters=filters[1], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = add([skip2, x])
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2DTranspose(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU(alpha=0.0)(x)
         x = BatchNormalization()(x)
 
         x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
         
-        x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(resized_input)
+        x = add([input_image, x])
         
         autoencoder = Model(input_image, x)
-        optimizer = Adam()#lr=0.0001
-        autoencoder.compile(optimizer=optimizer, loss='mean_squared_error')
+        optimizer = Adam(lr=0.001)
+        autoencoder.compile(optimizer=optimizer, loss='mean_absolute_error')
     
-        self.model = autoencoder        
+        self.model = autoencoder
+    
     
     def channel_wise_dense_layer_tensorflow(self, x, name): # bottom: (7x7x512)
         """ 

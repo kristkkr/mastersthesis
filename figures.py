@@ -51,19 +51,12 @@ def plot_evaluation(path_results, n_images):
     
             
 
-def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.1):
+def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.01):
     """
     Saves a plot of loss history for in 'path_results' including all subdirectories with a 'n' moving average.
     Note: when models are stopped and restarted, the loss_history include more training than what is in the last saved model.
     """
-    """
-    train_loss = list(np.load(path_results+'loss_history_train.npy'))
-        
-    if not single_im:
-        val_loss = np.load(path_results+'loss_history_val.npy')
-        val_loss_interp = np.interp(range(len(train_loss)), range(train_val_ratio-1,len(train_loss),train_val_ratio), val_loss)
-        val_loss_avg = moving_average(val_loss_interp, n=n)
-    """
+
     train_loss, val_loss = [],[]
     for subdir in os.walk(path_results):
         #print(subdir)
@@ -73,11 +66,12 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.1):
             if not single_im:
                 val_loss.extend(list(np.load(subdir+'/loss_history_val.npy')))
             
-            
+    
     train_loss_avg = moving_average(np.asarray(train_loss), n=n)    
     if not single_im:
         val_loss_interp = np.interp(range(len(train_loss)), range(train_val_ratio-1,len(train_loss),train_val_ratio), np.asarray(val_loss))
         val_loss_avg = moving_average(val_loss_interp, n=n)  
+    
     
     plt.figure()
     plt.gca()
