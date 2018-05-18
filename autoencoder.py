@@ -43,6 +43,7 @@ class AutoencoderModel:
         dilation = 1
         
         input_image = Input(shape=self.IMAGE_SHAPE) 
+        skip0 = input_image
         x = input_image
         
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
@@ -114,7 +115,7 @@ class AutoencoderModel:
 
         x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
         
-        x = add([input_image, x])
+        x = add([skip0, x])
         
         autoencoder = Model(input_image, x)
         optimizer = Adam(lr=0.001)
@@ -122,7 +123,109 @@ class AutoencoderModel:
     
         self.model = autoencoder
     
+
+    def create_ce(self):
+        """	
+        Model inspired by the paper Context Encoders.	
+        """	
+        resized_shape = (384, 512)	
+        resize_method = tf.image.ResizeMethod.BILINEAR	
+        
+        # conv layer parameters
+        conv_kernel_size = 5
+        conv_strides = 2
+        
+        conv_layers_pure = 0
+        dilation = 1
+
+        filters = [64, 128, 256, 512, 1024, 2096] #64, 128, 	
+       	
+        input_image = Input(shape=self.IMAGE_SHAPE)	
+        x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)	
+                
+        skip0 = x
+        
+        
+        x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)        
+
+        x = Conv2D(filters=filters[1], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        skip2 = x
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2D(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2D(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        skip4 = x
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        skip5 = x
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)     
+        
+        x = Conv2D(filters=filters[5], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        #skip6 = x
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)      
+        """
+        x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU()(x)
+        x = BatchNormalization()(x)
+        """
+        for i in range(conv_layers_pure):
+            x = Conv2D(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, padding = 'same', dilation_rate=dilation)(x)
+            x = LeakyReLU()(x)
+            x = BatchNormalization()(x)
+        ### BOTTLENECK ###            
+        for i in range(conv_layers_pure):
+            x = Conv2DTranspose(filters=filters[-1], kernel_size=conv_kernel_size, strides=1, activation = 'relu', padding = 'same', dilation_rate=dilation)(x)
+            x = BatchNormalization()(x)
+        """
+        x = Conv2DTranspose(filters=filters[5], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = add([skip6, x])
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+        """
+        x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = add([skip5, x])
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2DTranspose(filters=filters[3], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = add([skip4, x])
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2DTranspose(filters=filters[1], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = add([skip2, x])
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2DTranspose(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        x = LeakyReLU(alpha=0.0)(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
+        
+        x = add([skip0, x])
+        x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(x)
+        
+        autoencoder = Model(input_image, x)
+        optimizer = Adam(lr=0.001)
+        autoencoder.compile(optimizer=optimizer, loss='mean_absolute_error')
     
+        self.model = autoencoder
+        
     def channel_wise_dense_layer_tensorflow(self, x, name): # bottom: (7x7x512)
         """ 
         Based on Context Encoder implementation in TensorFlow.
@@ -208,6 +311,9 @@ class Autoencoder(AutoencoderModel):
             # train
             for train_batch in range(train_batches):
                 print('Training batch '+str(train_batch+1)+'/'+str(train_batches)+'. ', end='')
+                if train_batch % 10000 ==0:
+                    self.model.optimizer.lr = self.model.optimizer.lr*0.1  
+                
                 x = []
                 x, failed_im_load = ds.load_batch(ds.timestamp_list_train[train_timestamp_index:train_timestamp_index+self.indexing_iterator], failed_im_load)
                 
@@ -256,7 +362,7 @@ class Autoencoder(AutoencoderModel):
                                        model_freq=100*train_val_ratio, 
                                        loss_freq=train_val_ratio,  
                                        reconstruct_freq_train=1000000, 
-                                       reconstruct_freq_val=10*train_val_ratio, 
+                                       reconstruct_freq_val=train_val_ratio, 
                                        inpainting_grid=inpainting_grid, 
                                        single_im=single_im)
                 
@@ -293,7 +399,7 @@ class Autoencoder(AutoencoderModel):
             self.test(dataset = self.dataset, what_data_split='train', timestamp_index=train_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=False)
         
         if (freq_counter+1)%reconstruct_freq_val == 0: #reconstruct_freq_val needs to be a multiplier of train_val_ratio
-            self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=False)
+            #self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=False)
             
             if not inpainting_grid == None:
                 self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=True)
@@ -320,6 +426,7 @@ class Autoencoder(AutoencoderModel):
             print('Invalid data argument, no reconstruction possible.')
         
         i = 0
+        max_pred = 20
         while i < numb_of_timestamps:
             x,failed_im_load = dataset.load_batch(timestamps[i:i+self.indexing_iterator], failed_im_load=[])
             
@@ -331,7 +438,14 @@ class Autoencoder(AutoencoderModel):
                 if single_im_batch: # batch consist of one image
                     x_batch_masked, x_batch = dataset.mask_image(x[0], inpainting_grid)    # selects the first image in batch. 
                     x_batch_original_and_masked = np.concatenate((np.expand_dims(x_batch[0], axis=0), x_batch_masked), axis=0)
-                    y_batch = self.model.predict_on_batch(x_batch_original_and_masked)
+                    #y_batch = self.model.predict_on_batch(x_batch_original_and_masked)
+                    y_batch = np.copy(x_batch_masked)
+                    y_batch *=0
+                    
+                    if len(x_batch_masked)>max_pred:
+                        for i in range(len(x_batch_masked)//max_pred):
+                            y_batch[i*max_pred:(i+1)*max_pred] = self.model.predict_on_batch(x_batch_masked[i*max_pred:(i+1)*max_pred])
+                            #print(x_batch_masked[i*max_pred:(i+1)*max_pred].shape)
                     plot = create_reconstruction_plot_single_image(self, x_batch_original_and_masked, y_batch, inpainting_grid)                    
                     plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'-single.jpg')
                     print('Reconstruction single image inpainting saved')

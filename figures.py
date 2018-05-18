@@ -62,10 +62,12 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.01):
         #print(subdir)
         subdir = subdir[0]
         if os.path.isdir(subdir):
-            train_loss.extend(list(np.load(subdir+'/loss_history_train.npy')))
-            if not single_im:
-                val_loss.extend(list(np.load(subdir+'/loss_history_val.npy')))
-            
+            try:
+                train_loss.extend(list(np.load(subdir+'/loss_history_train.npy')))
+                if not single_im:
+                    val_loss.extend(list(np.load(subdir+'/loss_history_val.npy')))
+            except:
+                continue            
     
     train_loss_avg = moving_average(np.asarray(train_loss), n=n)    
     if not single_im:
@@ -82,6 +84,7 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.01):
     plt.legend()
     
     plt.gca().yaxis.grid(True)
+    plt.gca().xaxis.grid(True)
     plt.title('Loss during training')
     if not single_im:
         plt.xlabel('Time [batch]')
@@ -156,9 +159,11 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
     
     fig_rows = 5
     
-    fig_columns = min(len(original_and_masked_imgs),8)
+    fig_columns = min(len(original_and_masked_imgs),4)
+    #print(original_and_masked_imgs.shape, reconstructed_imgs.shape)
     
     residual = np.empty((original_and_masked_imgs.shape[:3]))
+    inpainted = autoencoder.merge_inpaintings(reconstructed_imgs, inpainting_grid) #reconstructed_imgs[1:]
     
     gs = gridspec.GridSpec(fig_rows, fig_columns)
     gs.update(wspace=0.02, hspace=0.02)
@@ -181,19 +186,26 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
         
         # display reconstructions
         ax = plt.subplot(gs[i+row*fig_columns]) 
-        plt.imshow(reconstructed_imgs[i])
+        
         ax.axis('off')        
-        if i==0: 
+        if i==0:
+            plt.imshow(inpainted)
             ax.set_ylabel('Reconstructed', rotation=rotation, fontsize=font_size)
+        else:
+            plt.imshow(reconstructed_imgs[i-1])
         row += 1
         
         # reconstruction residual in grayscale
         residual[i] = np.mean(np.abs(np.subtract(reconstructed_imgs[i], original_and_masked_imgs[0])), axis=2)
         ax = plt.subplot(gs[i+row*fig_columns]) 
-        plt.imshow(residual[i], cmap='gray')
+        
         ax.axis('off')
-        if i==0: 
-            ax.set_ylabel('Residual', rotation=rotation, fontsize=font_size)     
+        if i==0:
+            res_inpainted = np.mean(np.abs(np.subtract(inpainted, original_and_masked_imgs[0])), axis=2)
+            plt.imshow(res_inpainted, cmap='gray')
+            ax.set_ylabel('Residual', rotation=rotation, fontsize=font_size) 
+        else:
+            plt.imshow(residual[i-1], cmap='gray')
         row += 1
         """
         residual_reconstruction = np.abs(np.subtract(residual[0], residual[i]))
@@ -203,9 +215,10 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
         if i==0: 
             ax.set_ylabel('residual[0]\n -residual[i]', rotation=rotation, fontsize=font_size)
         row += 1
-        """            
+        """
+        """
         if i == 0:
-            inpainted = autoencoder.merge_inpaintings(reconstructed_imgs[1:], inpainting_grid)
+            
             ax = plt.subplot(gs[i+row*fig_columns])
             plt.imshow(inpainted, cmap='gray')            
             ax.set_ylabel('Inpainted', rotation=rotation, fontsize=font_size)
@@ -215,7 +228,7 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
             ax = plt.subplot(gs[i+row*fig_columns])
             plt.imshow(inpainted_residual, cmap='gray')            
             ax.set_ylabel('Inpainted \n residual', rotation=rotation, fontsize=font_size)
-            
+        """
     #plt.subplots_adjust(wspace=0.02,hspace=0.02)
     
     plt.close(plot)
