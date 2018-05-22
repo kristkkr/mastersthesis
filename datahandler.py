@@ -23,11 +23,13 @@ import matplotlib.pyplot as plt
 
 sys.path.insert(0,'/home/kristoffer/Documents/sensorfusion/polarlys')
 from dataloader import DataLoader
+from figures import show_images
 
 class Dataset():
     NUMB_OF_CAMERAS = 4
     NUMB_OF_LENSES = 3
-    IMAGE_SHAPE = (192,256,3) #(1920,2560,3)
+    IMAGE_SHAPE = (144,192,3) #(192,256,3) #(1920,2560,3)
+    IMAGE_SHAPE_ORIGINAL = (1920,2560,3)
     IMAGE_EXTENSION = '.jpg'
     
     def __init__(self, cams_lenses):
@@ -424,8 +426,34 @@ class Dataset():
                     continue
                 name = FILE_NAME_FORMAT_SEC.format(timestamp)+str(cam_lens)+'.jpg'
                 imsave(dir_save+name, image)
+        
+    def show_raw_data(self, rows, cols):
+        
+        n_images = rows*cols
+        batch = np.empty((n_images,)+(1920,2560,3), np.uint8) 
+        
+        dl = DataLoader(self.path, sensor_config='/home/kristoffer/Documents/sensorfusion/polarlys/dataloader.json')
+        path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/all/interval_5sec/'
+        timestamps = np.load(path_data+'timestamps.npy')
+        shuffle(timestamps)
+        timestamps = timestamps[:n_images]
+        i = 0
+        for timestamp in timestamps:
+            for cam_lens in self.cams_lenses: 
+                try:
+                    im = dl.load_image(timestamp, dl.TYPE_CAMERA, cam_lens)
+                    batch[i] = im
+                    i+=1                    
+                except:
+                    continue
+
+        fig = show_images(batch, rows, cols)
+        fig.savefig('raw_data2.jpg')
                 
 if __name__ == "__main__":
+    
+    ds = Dataset([(1,1), (3,1)])
+    ds.show_raw_data(5,6)
     
     """
     ### TESTS ###
@@ -464,13 +492,13 @@ if __name__ == "__main__":
     ds.copy_images_to_dir('all', '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/speed<6/')
     """
     
-    
+    """
     ### EXPLORE ILLUMINATION ###
     ds = Dataset('all')
     ds.path_timestamps = 'datasets/new2704/all/interval_30min/'
     ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
     ds.explore_illumination()
-    
+    """
     
     
     """

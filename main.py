@@ -25,9 +25,9 @@ ds_train = Dataset(cams_lenses = [(1,1),(3,1)]) #  when (1,1) is included, the b
 #ds_train.split_list(split_frac = (0.8,0.1,0.1), shuffle_order=True)
 #ds_train.path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test/'
 
-path_results = '/home/kristoffer/Documents/mastersthesis/results/ex44/continued/' 
+path_results = '/home/kristoffer/Documents/mastersthesis/results/ex45/continued/' 
 path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/speed>6/interval_5sec/removed_illumination/' 
-path_model_load = '/home/kristoffer/Documents/mastersthesis/results/ex44/' 
+path_model_load = '/home/kristoffer/Documents/mastersthesis/results/ex45/' 
 
 #np.save(path_results+'data_timestamp_list_train', ds_train.timestamp_list_train)
 #np.save(path_results+'data_timestamp_list_val', ds_train.timestamp_list_val)
@@ -36,9 +36,8 @@ ds_train.timestamp_list_train = np.load(path_data+'data_timestamp_list_train.npy
 ds_train.timestamp_list_val = np.load(path_data+'data_timestamp_list_val.npy') 
 #ds_train.timestamp_list_test = np.load(path_data+'data_timestamp_list_test.npy') 
 
-
-trained, validated = 20000, 2500
-batch_size=6
+trained, validated = 5600, 700
+batch_size=16
 train_start = ds_train.timestamp_list_train[:trained*batch_size]
 val_start = ds_train.timestamp_list_val[:validated*batch_size]
 ds_train.timestamp_list_train = np.concatenate((ds_train.timestamp_list_train[trained*batch_size:], train_start))
@@ -54,22 +53,23 @@ ds_val.split_list(split_frac = (0.0,1,0.0), shuffle_order=True)
 
  
 ae = Autoencoder(path_results, dataset = ds_train)
-ae.create_ae_dilated()
-#ae.create_context_encoder()
-ae.model.load_weights(path_model_load+'epoch00001_batch020000.hdf5')
-#ae.model = load_model(path_model_load+'epoch00001_batch020000.hdf5')
-#ae.model.optimizer.lr = 0.00001
+#ae.create_fca()
+#ae.create_ae_dilated()
+#ae.create_ce()
+#ae.model.load_weights(path_model_load+'epoch00001_batch020000.hdf5')
+ae.model = load_model(path_model_load+'epoch00001_batch005600.hdf5')
+ae.model.optimizer.lr = 0.00001
 
 ae.model.summary()
 
 # experiment
 epochs = 1
-batch_size = 6
-inpainting_grid = (6,8) # a tuple (height,width) or 'None'
+batch_size = 16
+inpainting_grid = (9,12) # a tuple (height,width) or 'None'
 
 
 
 ae.train(epochs, batch_size, inpainting_grid, single_im=False)
 
 #ae.dataset.path_test = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test/'
-#ae.evaluate(inpainting_grid, visual=0)
+#ae.evaluate(inpainting_grid, visual=1)

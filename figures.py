@@ -99,12 +99,12 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.01):
 def create_reconstruction_plot(autoencoder, original_imgs, reconstructed_imgs, *args):
     
     fig_rows = 3
+    fig_columns = min(len(original_imgs),4)    
     
     if args:
         masked_imgs = args[0]
         fig_rows += 1
     
-    fig_columns = len(original_imgs)
     residual = np.empty((original_imgs.shape[:3]))
     
     gs = gridspec.GridSpec(fig_rows, fig_columns)
@@ -112,7 +112,7 @@ def create_reconstruction_plot(autoencoder, original_imgs, reconstructed_imgs, *
     font_size=12
     rotation = 90
     scale=80
-    plot = plt.figure(figsize=(2560*fig_columns//scale,1920*fig_rows//scale))
+    plot = plt.figure(figsize=(autoencoder.dataset.IMAGE_SHAPE[1]*fig_columns//scale,autoencoder.dataset.IMAGE_SHAPE[0]*fig_rows//scale))
     for i in range(fig_columns):
         row=0
         # display original and masked
@@ -159,12 +159,13 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
     
     fig_rows = 3
     
-    fig_columns = min(len(original_and_masked_imgs),2)
+    fig_columns = min(len(original_and_masked_imgs),3)
     #print(original_and_masked_imgs.shape, reconstructed_imgs.shape)
     
     residual = np.empty((original_and_masked_imgs.shape[:3]))
     inpainted = autoencoder.merge_inpaintings(reconstructed_imgs, inpainting_grid) #reconstructed_imgs[1:]
     
+    """
     ### DELETE ###
     original_masked12 = original_and_masked_imgs[:2]
     del original_and_masked_imgs
@@ -175,13 +176,14 @@ def create_reconstruction_plot_single_image(autoencoder, original_and_masked_img
     del reconstructed_imgs
     reconstructed_imgs = []
     reconstructed_imgs[:2] = reconstructed0
-    
+    """
     gs = gridspec.GridSpec(fig_rows, fig_columns)
     gs.update(wspace=0.02, hspace=0.02)
     font_size=12
     rotation = 90
     scale=80
-    plot = plt.figure(figsize=(2560*fig_columns//scale,1920*fig_rows//scale))
+    plot = plt.figure(figsize=(autoencoder.dataset.IMAGE_SHAPE[1]*fig_columns//scale,autoencoder.dataset.IMAGE_SHAPE[0]*fig_rows//scale))
+    
     for i in range(fig_columns):
         row=0
         # display original and masked
@@ -251,7 +253,7 @@ def show_detections(*args):
     
     gs = gridspec.GridSpec(rows, columns)
     gs.update(wspace=0.02, hspace=0.02)
-    scale=30
+    scale=300
     plot = plt.figure(figsize=(2560*columns//scale,1920*rows//scale))
     
     for i in range(len(args)):
@@ -265,28 +267,22 @@ def show_detections(*args):
     
     return plot
 
-def show_raw_data(rows,cols,path_save):
+def show_images(images,rows,cols):
 
-    datagen = ImageDataGenerator(rescale=1./255)
-    path_windows = 'C:\\Users\\kristkkr\\OneDrive - NTNU\\Prosjektoppgave\\Datasett\\Hurtigruten\\'
-    
-    n = rows*cols
-    scale = 300
-    fig = plt.figure(figsize=(1280*cols//scale,720*rows//scale)) #(figsize=(width,height))
+    scale = 400
+    fig = plt.figure(figsize=(2560*cols//scale,1920*rows//scale)) #(figsize=(width,height))
     gs1 = gridspec.GridSpec(rows, cols)
     gs1.update(wspace=0.02, hspace=0.02)
 
-    for image in datagen.flow_from_directory(path_windows, shuffle=True, target_size = (720,1280), class_mode=None, batch_size=n):
-        for i in range(n):
-            ax = plt.subplot(gs1[i]) #rows,cols,i+1)
-            plt.axis('off')
-            ax.set_xticklabels([])
-            ax.set_yticklabels([])
-            ax.set_aspect('equal')
-            plt.imshow(image[i])
-        break
-    fig.savefig(path_save+'raw_data.png')
-    return  
+    for i in range(min(len(images),rows*cols)):
+        ax = plt.subplot(gs1[i]) #rows,cols,i+1)
+        plt.axis('off')
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.set_aspect('equal')
+        plt.imshow(images[i])
+
+    return fig
 
 def add_mask(image,mask):
     x,y,_ = image.shape
