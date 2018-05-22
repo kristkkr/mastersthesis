@@ -10,6 +10,7 @@ import os
 
 import numpy as np
 from scipy.ndimage import imread
+from scipy.misc import imresize
 import scipy.ndimage
 import json
 
@@ -29,7 +30,7 @@ from figures import create_reconstruction_plot, create_reconstruction_plot_singl
 
 class AutoencoderModel:
 
-    IMAGE_SHAPE = (1920,2560,3)
+    IMAGE_SHAPE = (144,192,3)#(192,256,3) #(1920,2560,3)
     
     def create_ae_dilated(self):
         
@@ -43,10 +44,11 @@ class AutoencoderModel:
         dilation = [2,4,8,16]
                 
         input_image = Input(shape=self.IMAGE_SHAPE) 
+        x = input_image
         resized_shape = (192,256) #(384, 512)	
         resize_method = tf.image.ResizeMethod.BICUBIC
         
-        x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)	
+        #x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)	
         
         x = Conv2D(filters=filters[1], kernel_size=k1, strides=s1, activation='relu', padding = 'same')(x)
         x = BatchNormalization()(x)
@@ -89,7 +91,7 @@ class AutoencoderModel:
         x = BatchNormalization()(x)
         
         x = Conv2D(filters=3, kernel_size=k2, strides=s1, activation='linear', padding = 'same')(x)        
-        x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(x)
+        #x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(x)
         x = Activation('sigmoid')(x)
         x = add([input_image,x])
         
@@ -196,9 +198,6 @@ class AutoencoderModel:
         """	
         Model inspired by the paper Context Encoders.	
         """	
-        resized_shape = (384, 512)	
-        resize_method = tf.image.ResizeMethod.BILINEAR
-        
         # conv layer parameters
         conv_kernel_size = 5
         conv_strides = 2
@@ -209,11 +208,12 @@ class AutoencoderModel:
         filters = [32, 64, 128, 256, 512, 1024] #64, 128, 	
        	
         input_image = Input(shape=self.IMAGE_SHAPE)	
+        x = input_image
         skip0 = input_image
 
         resized_shape = (384, 512)	
         resize_method = tf.image.ResizeMethod.BILINEAR
-        x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)	
+        #x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)	
         
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
@@ -225,7 +225,7 @@ class AutoencoderModel:
         x = BatchNormalization()(x)
         
         x = Conv2D(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
-        #skip3 = x
+        skip3 = x
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)
         
@@ -233,7 +233,7 @@ class AutoencoderModel:
         skip4 = x
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)
-        
+        """
         x = Conv2D(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         skip5 = x
         x = LeakyReLU()(x)
@@ -243,7 +243,7 @@ class AutoencoderModel:
         #skip6 = x
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)      
-        """
+        
         x = Conv2D(filters=filters[6], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)
@@ -261,7 +261,7 @@ class AutoencoderModel:
         x = add([skip6, x])
         x = LeakyReLU(alpha=0.0)(x)
         x = BatchNormalization()(x)
-        """
+        
         x = Conv2DTranspose(filters=filters[4], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = add([skip5, x])
         x = LeakyReLU(alpha=0.0)(x)
@@ -271,9 +271,9 @@ class AutoencoderModel:
         x = add([skip4, x])
         x = LeakyReLU(alpha=0.0)(x)
         x = BatchNormalization()(x)
-
+        """
         x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
-        #x = add([skip3, x])
+        x = add([skip3, x])
         x = LeakyReLU(alpha=0.0)(x)
         x = BatchNormalization()(x)
 
@@ -288,7 +288,7 @@ class AutoencoderModel:
 
         x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
         
-        x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(x)
+        #x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(x)
         x = add([skip0, x])
         
         autoencoder = Model(input_image, x)
@@ -382,8 +382,8 @@ class Autoencoder(AutoencoderModel):
             # train
             for train_batch in range(train_batches):
                 print('Training batch '+str(train_batch+1)+'/'+str(train_batches)+'. ', end='')
-                #if train_batch % 5000 ==0:
-                    #self.model.optimizer.lr = self.model.optimizer.lr*0.1  
+                if train_batch % 6000 ==0:
+                    self.model.optimizer.lr = self.model.optimizer.lr*0.1  
                 
                 x = []
                 x, failed_im_load = ds.load_batch(ds.timestamp_list_train[train_timestamp_index:train_timestamp_index+self.indexing_iterator], failed_im_load)
@@ -433,7 +433,7 @@ class Autoencoder(AutoencoderModel):
                                        model_freq=100*train_val_ratio, 
                                        loss_freq=train_val_ratio,  
                                        reconstruct_freq_train=1000000, 
-                                       reconstruct_freq_val=20*train_val_ratio, 
+                                       reconstruct_freq_val=10*train_val_ratio, 
                                        inpainting_grid=inpainting_grid, 
                                        single_im=single_im)
                 
@@ -509,14 +509,14 @@ class Autoencoder(AutoencoderModel):
                 if single_im_batch: # batch consist of one image
                     x_batch_masked, x_batch = dataset.mask_image(x[0], inpainting_grid)    # selects the first image in batch. 
                     x_batch_original_and_masked = np.concatenate((np.expand_dims(x_batch[0], axis=0), x_batch_masked), axis=0)
-                    #y_batch = self.model.predict_on_batch(x_batch_original_and_masked)
-                    y_batch = np.copy(x_batch_masked)
-                    y_batch *=0
-                    
+                    y_batch = self.model.predict_on_batch(x_batch_masked)
+                    """
                     if len(x_batch_masked)>max_pred:
+                        y_batch = np.copy(x_batch_masked)
+                        y_batch *=0
                         for i in range(len(x_batch_masked)//max_pred):
                             y_batch[i*max_pred:(i+1)*max_pred] = self.model.predict_on_batch(x_batch_masked[i*max_pred:(i+1)*max_pred])
-                            #print(x_batch_masked[i*max_pred:(i+1)*max_pred].shape)
+                    """
                     plot = create_reconstruction_plot_single_image(self, x_batch_original_and_masked, y_batch, inpainting_grid)                    
                     plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(j+1)+'-single.jpg')
                     print('Reconstruction single image inpainting saved')
@@ -541,6 +541,8 @@ class Autoencoder(AutoencoderModel):
         Merges inpatinings in 'y_batch' to a single image. 
         MOVE TO FIGURES.
         """
+        assert(len(y_batch)==np.prod(inpainting_grid))
+        
         mask_shape = (self.dataset.IMAGE_SHAPE[0]//inpainting_grid[0], self.dataset.IMAGE_SHAPE[1]//inpainting_grid[1])
 
         inpainted = np.empty(self.dataset.IMAGE_SHAPE)
@@ -564,22 +566,27 @@ class Autoencoder(AutoencoderModel):
     def evaluate(self, inpainting_grid, visual):
         """
         Evaluate model on test data. Same procedure as for single_im_batch in test()
+        TODO: work for reshaped images
         """
         
-        
+        reshaped = False
         for threshold in range(200,201,30): #should be the outermost loop
             metrics = {'box_tp': 0, 'box_fn': 0, 'recall':'NaN', 'cluster_tp':0, 'cluster_fp':0, 'precision':'NaN'}
             #threshold_array = threshold*np.ones((self.IMAGE_SHAPE[:2])+(,1),dtype=np.uint8).astype('float32') / 255.
             for filename in sorted(os.listdir(self.dataset.path_test)): #self.dataset.path_test):
                 if filename.endswith('.xml'):
                     image = imread(self.dataset.path_test+filename.replace('.xml','.jpg')).astype('float32') / 255.
-                    #image_batch = np.expand_dims(image, 0)
-    
+                    
+                    if image.shape != self.dataset.IMAGE_SHAPE:
+                        image = imresize(image,self.dataset.IMAGE_SHAPE,'bicubic')
+                        reshaped = True
                     x_batch_masked, _ = self.dataset.mask_image(image, inpainting_grid)
                     y_batch = self.model.predict_on_batch(x_batch_masked)
+                    if reshaped:
+                        y_batch = [imresize(im_pred,self.dataset.IMAGE_SHAPE_ORIGINAL,'bicubic') for im_pred in y_batch]
                     inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
                     residual = np.mean(np.abs(np.subtract(image, inpainted)), axis=2) #mean of channels or RGB->grayscale conversion?
-               
+                    
                     #binary_map = np.greater(residual, threshold_array)
                     binary_map = residual > threshold/255. #*np.ones(residual.shape,dtype=np.uint8).astype('float32') / 255.
                     
