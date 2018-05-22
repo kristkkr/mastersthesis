@@ -14,13 +14,13 @@ import scipy.ndimage
 import json
 
 
-from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape, add
-from keras.models import Model, Sequential
+from keras.layers import Input, Conv2D, Conv2DTranspose, Dense, BatchNormalization, Lambda, LeakyReLU, Flatten, Reshape, add, Activation
+from keras.models import Model#, Sequential
 from keras.callbacks import Callback#, EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.backend import tf
-from keras.optimizers import Adam
+from keras.optimizers import Adam, Adadelta
 #from keras import backend as K
-from keras.preprocessing.image import ImageDataGenerator
+#from keras.preprocessing.image import ImageDataGenerator
 
 import xml.etree.ElementTree as ET
 
@@ -30,6 +30,74 @@ from figures import create_reconstruction_plot, create_reconstruction_plot_singl
 class AutoencoderModel:
 
     IMAGE_SHAPE = (1920,2560,3)
+    
+    def create_ae_dilated(self):
+        
+        k1,k2, = 5,3
+        dk1 = 4
+        
+        s1, s2 = 1, 2
+                        
+        filters = [32,64,128,256] 
+
+        dilation = [2,4,8,16]
+                
+        input_image = Input(shape=self.IMAGE_SHAPE) 
+        resized_shape = (192,256) #(384, 512)	
+        resize_method = tf.image.ResizeMethod.BICUBIC
+        
+        x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)	
+        
+        x = Conv2D(filters=filters[1], kernel_size=k1, strides=s1, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2D(filters=filters[2], kernel_size=k2, strides=s2, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2D(filters=filters[2], kernel_size=k2, strides=s1, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2D(filters=filters[3], kernel_size=k2, strides=s2, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2D(filters=filters[3], kernel_size=k2, strides=s1, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2D(filters=filters[3], kernel_size=k2, strides=s1, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        
+        for d in dilation:
+            x = Conv2D(filters=filters[3], kernel_size=k1, strides=s1, activation='relu', padding = 'same', dilation_rate=d)(x)
+            x = BatchNormalization()(x)            
+        
+        x = Conv2D(filters=filters[3], kernel_size=k2, strides=s1, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+
+        x = Conv2D(filters=filters[3], kernel_size=k2, strides=s1, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2DTranspose(filters=filters[2], kernel_size=dk1, strides=s2, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2D(filters=filters[2], kernel_size=k2, strides=s1, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2DTranspose(filters=filters[1], kernel_size=dk1, strides=s2, activation = 'relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2D(filters=filters[0], kernel_size=k2, strides=s1, activation='relu', padding = 'same')(x)
+        x = BatchNormalization()(x)
+        
+        x = Conv2D(filters=3, kernel_size=k2, strides=s1, activation='linear', padding = 'same')(x)        
+        x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(x)
+        x = Activation('sigmoid')(x)
+        x = add([input_image,x])
+        
+        autoencoder = Model(input_image, x)
+        optimizer = Adadelta()
+        autoencoder.compile(optimizer=optimizer, loss='mean_squared_error')
+    
+        self.model = autoencoder
 
     def create_fca(self):
         
@@ -129,7 +197,7 @@ class AutoencoderModel:
         Model inspired by the paper Context Encoders.	
         """	
         resized_shape = (384, 512)	
-        resize_method = tf.image.ResizeMethod.BILINEAR	
+        resize_method = tf.image.ResizeMethod.BILINEAR
         
         # conv layer parameters
         conv_kernel_size = 5
@@ -138,13 +206,14 @@ class AutoencoderModel:
         conv_layers_pure = 0
         dilation = 1
 
-        filters = [64, 128, 256, 512, 1024, 2096] #64, 128, 	
+        filters = [32, 64, 128, 256, 512, 1024] #64, 128, 	
        	
         input_image = Input(shape=self.IMAGE_SHAPE)	
+        skip0 = input_image
+
+        resized_shape = (384, 512)	
+        resize_method = tf.image.ResizeMethod.BILINEAR
         x = Lambda(lambda image: tf.image.resize_images(image, resized_shape, method = resize_method))(input_image)	
-                
-        skip0 = x
-        
         
         x = Conv2D(filters=filters[0], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
         x = LeakyReLU()(x)
@@ -156,6 +225,7 @@ class AutoencoderModel:
         x = BatchNormalization()(x)
         
         x = Conv2D(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        #skip3 = x
         x = LeakyReLU()(x)
         x = BatchNormalization()(x)
         
@@ -203,6 +273,7 @@ class AutoencoderModel:
         x = BatchNormalization()(x)
 
         x = Conv2DTranspose(filters=filters[2], kernel_size=conv_kernel_size, strides=conv_strides, padding = 'same')(x)
+        #x = add([skip3, x])
         x = LeakyReLU(alpha=0.0)(x)
         x = BatchNormalization()(x)
 
@@ -217,8 +288,8 @@ class AutoencoderModel:
 
         x = Conv2DTranspose(filters=3, kernel_size=conv_kernel_size, strides=conv_strides, activation = 'sigmoid', padding = 'same')(x)
         
-        x = add([skip0, x])
         x = Lambda(lambda image: tf.image.resize_images(image, self.dataset.IMAGE_SHAPE[:2], method = resize_method))(x)
+        x = add([skip0, x])
         
         autoencoder = Model(input_image, x)
         optimizer = Adam(lr=0.001)
@@ -311,8 +382,8 @@ class Autoencoder(AutoencoderModel):
             # train
             for train_batch in range(train_batches):
                 print('Training batch '+str(train_batch+1)+'/'+str(train_batches)+'. ', end='')
-                if train_batch % 10000 ==0:
-                    self.model.optimizer.lr = self.model.optimizer.lr*0.1  
+                #if train_batch % 5000 ==0:
+                    #self.model.optimizer.lr = self.model.optimizer.lr*0.1  
                 
                 x = []
                 x, failed_im_load = ds.load_batch(ds.timestamp_list_train[train_timestamp_index:train_timestamp_index+self.indexing_iterator], failed_im_load)
@@ -362,7 +433,7 @@ class Autoencoder(AutoencoderModel):
                                        model_freq=100*train_val_ratio, 
                                        loss_freq=train_val_ratio,  
                                        reconstruct_freq_train=1000000, 
-                                       reconstruct_freq_val=train_val_ratio, 
+                                       reconstruct_freq_val=20*train_val_ratio, 
                                        inpainting_grid=inpainting_grid, 
                                        single_im=single_im)
                 
@@ -399,7 +470,7 @@ class Autoencoder(AutoencoderModel):
             self.test(dataset = self.dataset, what_data_split='train', timestamp_index=train_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=False)
         
         if (freq_counter+1)%reconstruct_freq_val == 0: #reconstruct_freq_val needs to be a multiplier of train_val_ratio
-            #self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=False)
+            self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=False)
             
             if not inpainting_grid == None:
                 self.test(dataset = self.dataset, what_data_split='val', timestamp_index=val_timestamp_index, numb_of_timestamps=1, epoch = epoch, batch = batch, inpainting_grid=inpainting_grid, single_im_batch=True)
@@ -425,10 +496,10 @@ class Autoencoder(AutoencoderModel):
         else:
             print('Invalid data argument, no reconstruction possible.')
         
-        i = 0
-        max_pred = 20
-        while i < numb_of_timestamps:
-            x,failed_im_load = dataset.load_batch(timestamps[i:i+self.indexing_iterator], failed_im_load=[])
+        j = 0
+        max_pred = 24
+        while j < numb_of_timestamps:
+            x,failed_im_load = dataset.load_batch(timestamps[j:j+self.indexing_iterator], failed_im_load=[])
             
             #if failed_im_load != []:
                 #continue
@@ -447,22 +518,22 @@ class Autoencoder(AutoencoderModel):
                             y_batch[i*max_pred:(i+1)*max_pred] = self.model.predict_on_batch(x_batch_masked[i*max_pred:(i+1)*max_pred])
                             #print(x_batch_masked[i*max_pred:(i+1)*max_pred].shape)
                     plot = create_reconstruction_plot_single_image(self, x_batch_original_and_masked, y_batch, inpainting_grid)                    
-                    plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'-single.jpg')
+                    plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(j+1)+'-single.jpg')
                     print('Reconstruction single image inpainting saved')
                 else: # same as below.
                     #x_batch_masked,_ = dataset.mask_batch(x, inpainting_grid)
                     x_batch_masked,_ = dataset.mask_batch_randomly(x, inpainting_grid)
                     y_batch = self.model.predict_on_batch(x_batch_masked)
                     plot = create_reconstruction_plot(self, x, y_batch, x_batch_masked)                    
-                    plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
+                    plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(j+1)+'.jpg')
                     print('Reconstruction inpainting saved')                
             else:
                 y_batch = self.model.predict_on_batch(x)
                 plot = create_reconstruction_plot(self, x, y_batch)                    
-                plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(i+1)+'.jpg')
+                plot.savefig(self.path_results+'reconstruction'+'-epoch'+str(epoch+1)+'-batch'+str(batch+1)+what_data_split+str(j+1)+'.jpg')
                 print('Reconstruction regular saved')            
 
-            i += self.indexing_iterator
+            j += self.indexing_iterator
 
     
     def merge_inpaintings(self, y_batch, inpainting_grid):

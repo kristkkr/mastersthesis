@@ -157,13 +157,24 @@ def create_reconstruction_plot(autoencoder, original_imgs, reconstructed_imgs, *
 
 def create_reconstruction_plot_single_image(autoencoder, original_and_masked_imgs, reconstructed_imgs, inpainting_grid):
     
-    fig_rows = 5
+    fig_rows = 3
     
-    fig_columns = min(len(original_and_masked_imgs),4)
+    fig_columns = min(len(original_and_masked_imgs),2)
     #print(original_and_masked_imgs.shape, reconstructed_imgs.shape)
     
     residual = np.empty((original_and_masked_imgs.shape[:3]))
     inpainted = autoencoder.merge_inpaintings(reconstructed_imgs, inpainting_grid) #reconstructed_imgs[1:]
+    
+    ### DELETE ###
+    original_masked12 = original_and_masked_imgs[:2]
+    del original_and_masked_imgs
+    original_and_masked_imgs = []
+    original_and_masked_imgs[:2] = original_masked12
+    
+    reconstructed0 = reconstructed_imgs[:2]
+    del reconstructed_imgs
+    reconstructed_imgs = []
+    reconstructed_imgs[:2] = reconstructed0
     
     gs = gridspec.GridSpec(fig_rows, fig_columns)
     gs.update(wspace=0.02, hspace=0.02)

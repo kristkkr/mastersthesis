@@ -254,7 +254,7 @@ class Dataset():
                     rectangle_coordinates = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
                     im = Image.fromarray(np.uint8(batch[i]*255),'RGB') # remove scaleing
                     draw = ImageDraw.Draw(im)
-                    draw.rectangle(rectangle_coordinates,fill=0)
+                    draw.rectangle(rectangle_coordinates,fill=(100,100,100))
                     masked_batch[i] = np.asarray(im, dtype=np.uint8)
                 except:
                     break
@@ -288,7 +288,7 @@ class Dataset():
             rectangle_coordinates = [ulc[i], (ulc[i][0]+mask_shape[1],ulc[i][1]+mask_shape[0])]
             im = Image.fromarray(np.uint8(batch[i]*255),'RGB') # remove scaleing
             draw = ImageDraw.Draw(im)
-            draw.rectangle(rectangle_coordinates,fill=0)
+            draw.rectangle(rectangle_coordinates,fill=(100,100,100))
             masked_batch[i] = np.asarray(im, dtype=np.uint8)
             
         return masked_batch.astype('float32') / 255., batch    
