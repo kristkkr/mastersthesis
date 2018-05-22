@@ -16,7 +16,7 @@ import seaborn as sns
 import pandas as pd
 from PIL import Image, ImageDraw
 from random import shuffle
-from scipy.misc import imsave
+from scipy.misc import imsave, imresize
 import matplotlib.pyplot as plt
 
 #from collections import Iterable
@@ -27,7 +27,7 @@ from dataloader import DataLoader
 class Dataset():
     NUMB_OF_CAMERAS = 4
     NUMB_OF_LENSES = 3
-    IMAGE_SHAPE = (1920,2560,3)
+    IMAGE_SHAPE = (192,256,3) #(1920,2560,3)
     IMAGE_EXTENSION = '.jpg'
     
     def __init__(self, cams_lenses):
@@ -198,13 +198,14 @@ class Dataset():
             for cam_lens in self.cams_lenses: 
                 try:
                     im = dl.load_image(timestamp, dl.TYPE_CAMERA, cam_lens)
-                    batch.resize(((i+1,)+(self.IMAGE_SHAPE))) # not double tested if correct. if wrong, we train at only zeros without noiticing
+                    batch.resize(((i+1,)+(self.IMAGE_SHAPE))) 
+                    if im.shape != self.IMAGE_SHAPE:
+                        im = imresize(im,self.IMAGE_SHAPE,'bicubic')
                     batch[i,:] = im
-                
                     i+=1
                 except:
                     failed_im_load.append((timestamp, cam_lens))
-        
+                
         return batch.astype('float32') / 255., failed_im_load
     
     
