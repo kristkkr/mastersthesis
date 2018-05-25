@@ -87,9 +87,9 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.01):
     plt.gca().xaxis.grid(True)
     plt.title('Loss during training')
     if not single_im:
-        plt.xlabel('Time [batch]')
+        plt.xlabel('Iteration [batch]')
     else:
-        plt.xlabel('Time [epoch]')
+        plt.xlabel('Iteration [epoch]')
     plt.ylabel('Loss')
     plt.ylim(0,ylim)
     plt.savefig(path_results+'loss_history_avg_n'+str(n)+'.eps', format='eps')
@@ -258,7 +258,7 @@ def show_detections(*args):
     
     for i in range(len(args)):
         ax = plt.subplot(gs[i])
-        
+        #print(args[i].shape, np.amax(args[i]))
         if len(args[i].shape)==2:
             plt.imshow(args[i], cmap='gray')
         else:

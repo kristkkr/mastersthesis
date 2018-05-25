@@ -9,9 +9,9 @@ Created on Thu Feb  8 15:40:09 2018
 import os
 
 import numpy as np
-from scipy.ndimage import imread
+from scipy.ndimage import imread, label, find_objects
 from scipy.misc import imresize
-import scipy.ndimage
+#import scipy.ndimage
 import json
 
 
@@ -32,7 +32,7 @@ from figures import create_reconstruction_plot, create_reconstruction_plot_singl
 
 class AutoencoderModel:
 
-    IMAGE_SHAPE = (144,192,3)#(192,256,3) #(1920,2560,3)
+    IMAGE_SHAPE = (144,192,3)#(192,256,3) #
     
     def create_ae_dilated(self):
         
@@ -432,10 +432,10 @@ class Autoencoder(AutoencoderModel):
                                        train_timestamp_index-self.indexing_iterator, 
                                        val_timestamp_index-self.indexing_iterator, 
                                        train_val_ratio, 
-                                       model_freq=100*train_val_ratio, 
+                                       model_freq=2*100*train_val_ratio, 
                                        loss_freq=train_val_ratio,  
                                        reconstruct_freq_train=1000000, 
-                                       reconstruct_freq_val=5*train_val_ratio, 
+                                       reconstruct_freq_val=20*train_val_ratio, 
                                        inpainting_grid=inpainting_grid, 
                                        single_im=single_im)
                 
@@ -568,39 +568,44 @@ class Autoencoder(AutoencoderModel):
     def evaluate(self, inpainting_grid, visual):
         """
         Evaluate model on test data. Same procedure as for single_im_batch in test()
-        TODO: work for reshaped images
+        could consider evaluating at resized image and not original. 
         """
         
-        reshaped = False
-        for threshold in range(200,201,30): #should be the outermost loop
-            metrics = {'box_tp': 0, 'box_fn': 0, 'recall':'NaN', 'cluster_tp':0, 'cluster_fp':0, 'precision':'NaN'}
+        for threshold in range(50,160,1000): #should be the outermost loop
+            metrics = {'box_tp': 0, 'box_fn': 0, 'recall':'NaN', 'pixel_tp':0, 'pixel_fp':0, 'pixel_precision':'NaN','cluster_tp':0, 'cluster_fp':0, 'cluster_precision':'NaN'}
             #threshold_array = threshold*np.ones((self.IMAGE_SHAPE[:2])+(,1),dtype=np.uint8).astype('float32') / 255.
-            for filename in sorted(os.listdir(self.dataset.path_test)): #self.dataset.path_test):
+            for filename in sorted(os.listdir(self.dataset.path_test))[49:50]: #self.dataset.path_test):
                 if filename.endswith('.xml'):
                     image = imread(self.dataset.path_test+filename.replace('.xml','.jpg')).astype('float32') / 255.
                     
                     if image.shape != self.dataset.IMAGE_SHAPE:
-                        image = imresize(image,self.dataset.IMAGE_SHAPE,'bicubic')
+                        image_lr = imresize(image,self.dataset.IMAGE_SHAPE,'bicubic')/ 255.
                         #reshaped = True
-                    x_batch_masked, _ = self.dataset.mask_image(image, inpainting_grid)
+                    
+                    x_batch_masked, _ = self.dataset.mask_image(image_lr, inpainting_grid)
                     y_batch = self.model.predict_on_batch(x_batch_masked)
                     #if reshaped:
                     #    y_batch = [imresize(im_pred,self.dataset.IMAGE_SHAPE_ORIGINAL,'bicubic') for im_pred in y_batch]
                     inpainted = self.merge_inpaintings(y_batch, inpainting_grid)
+                    if inpainted.shape != image.shape:
+                        inpainted = imresize(inpainted,image.shape,'bicubic')/ 255.
                     residual = np.mean(np.abs(np.subtract(image, inpainted)), axis=2) #mean of channels or RGB->grayscale conversion?
                     
                     #binary_map = np.greater(residual, threshold_array)
                     binary_map = residual > threshold/255. #*np.ones(residual.shape,dtype=np.uint8).astype('float32') / 255.
                     
-                    box_tp, box_fn, recall = count_box_detections(binary_map, self.dataset.path_test+filename.replace('.jpg', '.xml'))# self.dataset.IMAGE_EXTENSION
-                    cluster_tp, cluster_fp, precision = count_clustered_detections(binary_map, self.dataset.path_test+filename.replace('.jpg', '.xml'))
-
-                    metrics = update_metrics(metrics, box_tp, box_fn, recall, cluster_tp, cluster_fp, precision)
+                    box_tp, box_fn, recall = count_box_detections(binary_map, self.dataset.path_test+filename.replace('.jpg', '.xml'), self.dataset.IMAGE_SHAPE_ORIGINAL)# self.dataset.IMAGE_EXTENSION
+                    pixel_tp, pixel_fp, pixel_precision, object_gt_map = count_pixel_detections(binary_map, self.dataset.path_test+filename.replace('.jpg', '.xml'))
+                    cluster_tp, cluster_fp, cluster_precision = count_clustered_detections(binary_map, self.dataset.path_test+filename.replace('.jpg', '.xml'))
                     
+                    metrics = update_metrics(metrics, box_tp, box_fn, pixel_tp, pixel_fp, cluster_tp, cluster_fp)
+                    #print(object_gt_map.shape)
                     print(filename, threshold)
                     print(box_tp, box_fn,'recall=',recall)
-                    print(cluster_tp, cluster_fp, 'precision=',precision)
-    
+                    print(cluster_tp, cluster_fp, 'cluster_precision=',cluster_precision)
+                    print(pixel_tp, pixel_fp, 'pixel_precision=',pixel_precision)
+                    
+                    
                     if visual:
                         object_map = map_on_image(image, binary_map)
                         figure = show_detections(image, inpainted, residual, binary_map, object_map)
@@ -610,19 +615,27 @@ class Autoencoder(AutoencoderModel):
                     with open(self.path_results+'metrics-threshold'+str(threshold)+'.txt', 'w') as fp:
                         json.dump(metrics,fp)
 
-def update_metrics(metrics, box_tp, box_fn, recall, cluster_tp, cluster_fp, precision):
+def update_metrics(metrics, box_tp, box_fn, pixel_tp, pixel_fp, cluster_tp, cluster_fp):
     metrics['box_tp'] += box_tp
     metrics['box_fn'] += box_fn
     try:
         metrics['recall'] = round(metrics['box_tp']/(metrics['box_tp']+metrics['box_fn']),4)
     except:
         metrics['recall'] = 'NaN'
+    
+    metrics['pixel_tp'] += pixel_tp
+    metrics['pixel_fp'] += pixel_fp
+    try:
+        metrics['pixel_precision'] = round(metrics['pixel_tp']/(metrics['pixel_tp']+metrics['pixel_fp']),4)
+    except:
+        metrics['pixel_precision'] = 'NaN'
+    
     metrics['cluster_tp'] += cluster_tp
     metrics['cluster_fp'] += cluster_fp
     try:
-        metrics['precision'] = round(metrics['cluster_tp']/(metrics['cluster_tp']+metrics['cluster_fp']),4)
+        metrics['cluster_precision'] = round(metrics['cluster_tp']/(metrics['cluster_tp']+metrics['cluster_fp']),4)
     except:
-        metrics['precision'] = 'NaN'  
+        metrics['cluster_precision'] = 'NaN'  
     return metrics
             
 def count_pixel_detections(binary_map, gt_file):
@@ -630,9 +643,12 @@ def count_pixel_detections(binary_map, gt_file):
     y,x = binary_map.shape
     object_gt_map,_,background_gt_map,_ = read_gt_file(gt_file,(y,x))
     if binary_map.shape != object_gt_map.shape:
-        object_gt_map = imresize(object_gt_map, binary_map.shape, interp='nearest')
-        background_gt_map = imresize(background_gt_map, binary_map.shape, interp='nearest')
+        object_gt_map = imresize(object_gt_map, binary_map.shape, interp='nearest')/255.
+        background_gt_map = imresize(background_gt_map, binary_map.shape, interp='nearest')/255.
     gt_map = np.logical_or(object_gt_map,background_gt_map)
+    
+    assert(np.amax(binary_map)<=1)
+    assert(np.amax(gt_map)<=1)
     
     tp, fp, fn, tn = 0,0,0,0
     for j in range(y):
@@ -651,7 +667,7 @@ def count_pixel_detections(binary_map, gt_file):
         precision = round(tp/(tp+fp),4)
     except:
         precision = 'NaN'
-    return tp, fp, precision
+    return tp, fp, precision, object_gt_map
 
 def count_clustered_detections(binary_map, gt_file):
     """counts clustered detections tp, fp in binary predicted map with respect to ground truth files"""
@@ -659,15 +675,17 @@ def count_clustered_detections(binary_map, gt_file):
     object_gt_map,_,background_gt_map,_ = read_gt_file(gt_file,(y,x))
     
     if binary_map.shape != object_gt_map.shape:
-        object_gt_map = imresize(object_gt_map, binary_map.shape, interp='nearest')
-        background_gt_map = imresize(background_gt_map, binary_map.shape, interp='nearest')
+        object_gt_map = imresize(object_gt_map, binary_map.shape, interp='nearest')/ 255.
+        background_gt_map = imresize(background_gt_map, binary_map.shape, interp='nearest')/ 255.
         
     gt_map = np.logical_or(object_gt_map,background_gt_map)
     
-    labeled_binary_map,_ = scipy.ndimage.label(binary_map) #label each clustered detection
+    labeled_binary_map,_ = label(binary_map) #label each clustered detection
     
-    object_slices = scipy.ndimage.find_objects(labeled_binary_map)
+    object_slices = find_objects(labeled_binary_map)
     
+    assert(np.amax(gt_map)<=1)
+
     tp, fp = 0,0
     for object_slice in object_slices:
         if gt_map[object_slice].any() == 1:
@@ -681,18 +699,28 @@ def count_clustered_detections(binary_map, gt_file):
         precision = 'NaN'
     return tp, fp, precision
 
-def count_box_detections(binary_map, gt_file):
+def count_box_detections(binary_map, gt_file, IMAGE_SHAPE_ORIGINAL):
     """counts box detections. use object box class"""
     ### resoze binary map to large?
+    #print(binary_map.shape)
+    binary_map_copy = binary_map
+    if binary_map_copy.shape != IMAGE_SHAPE_ORIGINAL:
+        binary_map_copy = imresize(binary_map_copy, IMAGE_SHAPE_ORIGINAL, interp='nearest')/ 255.
     
-    y,x = binary_map.shape
+    #print(binary_map.shape)
+    #Image.fromarray(binary_map*255, 'L').show()
+    #Image.fromarray(binary_map_copy, 'L').show()
+    y,x = binary_map_copy.shape
     _, object_boxes,_,_ = read_gt_file(gt_file,(y,x))
     #binary_map, gt_map = binary_map/255, gt_map/255
+    
+    assert(np.amax(binary_map_copy)<=1)
+    
     tp,fn= 0,0
     for box in object_boxes:
         xmin, ymin, xmax, ymax = box[0], box[1], box[2], box[3]
         
-        if binary_map[ymin:ymax,xmin:xmax].any() == 1:
+        if binary_map_copy[ymin:ymax,xmin:xmax].any() == 1:
             tp +=1
         else:
             fn +=1

@@ -14,5 +14,5 @@ from figures import plot_loss_history
 
 #ds = Dataset([(0,1)]) #[(1,1),(3,1)])
 path_results = '/home/kristoffer/Documents/mastersthesis/results/ex48/'
-plot_loss_history(path_results, train_val_ratio=8, n=100, single_im=False, ylim = 0.1)
+plot_loss_history(path_results, train_val_ratio=8, n=1000, single_im=False, ylim = 0.05)
 

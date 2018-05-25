@@ -9,7 +9,7 @@ Created on Thu Feb  1 16:02:43 2018
 import sys
 import os
 import itertools
-#import datetime
+import datetime
 
 import numpy as np
 import seaborn as sns
@@ -43,6 +43,7 @@ class Dataset():
         self.timestamp_list_test = []
         self.init_cams_lenses(cams_lenses)
         self.images_per_timestamp = len(self.cams_lenses)    
+        self.mask_color = (100,100,100)
         
     def init_cams_lenses(self, cams_lenses):
         if cams_lenses == 'all':
@@ -175,6 +176,20 @@ class Dataset():
                 print(i)
         print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))        
     
+    def append_timestamps(self, second):
+        """
+        tl = self.timestamp_list
+        del self.timestamp_list
+
+        self.timestamp_list = []
+        for t in tl:
+            self.timestamp_list.append(t + datetime.timedelta(seconds=second))
+        """
+        self.timestamp_list = [t + datetime.timedelta(seconds=second) for t in self.timestamp_list]
+        
+        return
+        
+        
     def sample_list(self, l, sampling_interval):
         return l[0:len(l):sampling_interval]
     
@@ -233,6 +248,7 @@ class Dataset():
         #rows, columns = grid
         
         original_image_batch = np.empty((np.prod(grid),)+ self.IMAGE_SHAPE)
+        
         for i in range(len(original_image_batch)):
             original_image_batch[i] = image
         
@@ -257,7 +273,7 @@ class Dataset():
                     rectangle_coordinates = [ulc, (ulc[0]+mask_shape[1],ulc[1]+mask_shape[0])]
                     im = Image.fromarray(np.uint8(batch[i]*255),'RGB') # remove scaleing
                     draw = ImageDraw.Draw(im)
-                    draw.rectangle(rectangle_coordinates,fill=(100,100,100))
+                    draw.rectangle(rectangle_coordinates,fill=self.mask_color)
                     masked_batch[i] = np.asarray(im, dtype=np.uint8)
                 except:
                     break
@@ -291,7 +307,7 @@ class Dataset():
             rectangle_coordinates = [ulc[i], (ulc[i][0]+mask_shape[1],ulc[i][1]+mask_shape[0])]
             im = Image.fromarray(np.uint8(batch[i]*255),'RGB') # remove scaleing
             draw = ImageDraw.Draw(im)
-            draw.rectangle(rectangle_coordinates,fill=(100,100,100))
+            draw.rectangle(rectangle_coordinates,fill=self.mask_color)
             masked_batch[i] = np.asarray(im, dtype=np.uint8)
             
         return masked_batch.astype('float32') / 255., batch    
@@ -452,8 +468,8 @@ class Dataset():
                 
 if __name__ == "__main__":
     
-    ds = Dataset([(1,1), (3,1)])
-    ds.show_raw_data(5,6)
+    #ds = Dataset([(1,1), (3,1)])
+    #ds.show_raw_data(5,6)
     
     """
     ### TESTS ###
@@ -471,19 +487,24 @@ if __name__ == "__main__":
     Image.fromarray(np.uint8(masked_images[0]*255),'RGB').show()
     """
     
-    """
+    
     ### CREATE NEW DATASET ###
     ds = Dataset('all')
-    ds.path_timestamps = 'datasets/new2704/all/interval_30min/'
-    ds.read_timestamps_file(ds.path_timestamps+'timestamps.npy')
+    
+    ds.path_timestamps = 'datasets/new2704/speed>6/interval_5sec/removed_illumination/'
+    
+    
+    #ds.read_timestamps_file(ds.path_timestamps+'data_timestamp_list_val.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
-    ds.select_subset(max_speed=6)
+    #ds.select_subset(min_speed=6)
     #ds.select_subset(targets_ais_min=2, max_range=1000)
-    #ds.timestamp_list = ds.sample_list(ds.timestamp_list,60*30)
+    #ds.timestamp_list = ds.sample_list(ds.timestamp_list,2)
     #ds.remove_hour_from_timestamplist([1,2,3,4,20,21,22,23], 2)
     #ds.remove_timestamp_illumination(range(50),2)
-    ds.write_timestamps_file('datasets/new2704/speed<6/timestamps')
-    """
+    #ds.append_timestamps(2)
+    
+    #ds.write_timestamps_file('datasets/new2704/speed>6/interval_5sec/removed_illumination/data_timestamp_list_val2')
+    
     """
     ### MOVE TEST DATA TO DIRECTORY ###
     ds = Dataset([(1,1),(3,1)])
