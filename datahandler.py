@@ -394,7 +394,7 @@ class Dataset():
         figname = 'illumination'+figkind
         sns.jointplot(x=hourname, y=illuminationname, data=df, kind=figkind, stat_func=None, ratio = 3,  marginal_kws=dict(bins=24), xlim=(0,24), ylim=(0,255))
         plt.savefig(self.path_timestamps+figname+'2.pdf', format='pdf')
-        """
+        
         figname = 'hist-illumination'
         plt.figure()
         sns.distplot(df[illuminationname], kde=False, rug=False)
@@ -408,7 +408,7 @@ class Dataset():
         plt.xlim([0,24])
         plt.ylabel('Number of examples')
         plt.savefig(self.path_timestamps+figname+'.pdf', format='pdf')        
-        """
+        
     def get_speed(self, dl, timestamp):
         vel = dl.get_seapath_data(timestamp)['velocity']
         return np.linalg.norm(vel)

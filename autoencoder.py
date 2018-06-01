@@ -571,10 +571,10 @@ class Autoencoder(AutoencoderModel):
         could consider evaluating at resized image and not original. 
         """
         
-        for threshold in range(50,160,1000): #should be the outermost loop
+        for threshold in range(50,151,10): #should be the outermost loop
             metrics = {'box_tp': 0, 'box_fn': 0, 'recall':'NaN', 'pixel_tp':0, 'pixel_fp':0, 'pixel_precision':'NaN','cluster_tp':0, 'cluster_fp':0, 'cluster_precision':'NaN'}
             #threshold_array = threshold*np.ones((self.IMAGE_SHAPE[:2])+(,1),dtype=np.uint8).astype('float32') / 255.
-            for filename in sorted(os.listdir(self.dataset.path_test))[49:50]: #self.dataset.path_test):
+            for filename in sorted(os.listdir(self.dataset.path_test)): #[49:50]: #self.dataset.path_test):
                 if filename.endswith('.xml'):
                     image = imread(self.dataset.path_test+filename.replace('.xml','.jpg')).astype('float32') / 255.
                     
@@ -612,8 +612,8 @@ class Autoencoder(AutoencoderModel):
                         figure.savefig(self.path_results+'detections-threshold'+str(threshold)+'--'+filename.replace('.xml','.jpg'))
                         print('figsaved')
                         
-                    with open(self.path_results+'metrics-threshold'+str(threshold)+'.txt', 'w') as fp:
-                        json.dump(metrics,fp)
+            with open(self.path_results+'metrics-threshold'+str(threshold)+'.txt', 'w') as fp:
+                json.dump(metrics,fp)
 
 def update_metrics(metrics, box_tp, box_fn, pixel_tp, pixel_fp, cluster_tp, cluster_fp):
     metrics['box_tp'] += box_tp

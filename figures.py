@@ -24,7 +24,7 @@ from keras.preprocessing.image import ImageDataGenerator
 
 def plot_evaluation(path_results, n_images):
     
-    recalls, precisions, false_positives = [],[],[]
+    recalls, precisions_cl, precisions_pix, false_positives_cl, false_positives_pix = [],[],[],[],[]
     
     for metric_filename in os.listdir(path_results):
         if metric_filename.endswith('.txt'):
@@ -32,26 +32,48 @@ def plot_evaluation(path_results, n_images):
                 metrics = json.load(fp)
                 
             recalls.append(metrics['recall'])
-            precisions.append(metrics['precision'])
-            false_positives.append(metrics['cluster_fp']//n_images)
+            precisions_cl.append(metrics['cluster_precision'])
+            false_positives_cl.append(metrics['cluster_fp']//n_images)
+            
+            precisions_pix.append(metrics['pixel_precision'])
+            false_positives_pix.append(metrics['pixel_fp']//n_images)
     
-    df = pd.DataFrame({'Recall': recalls, 'Precision': precisions, 'Mean false positives':false_positives})
+    df_cl = pd.DataFrame({'Recall': recalls, 'Precision': precisions_cl, 'Mean false clustered positives per image':false_positives_cl})
+    df_pix = pd.DataFrame({'Recall': recalls, 'Precision': precisions_pix, 'Mean false pixel positives per image':false_positives_pix})
     
-    sns.regplot('Precision', 'Recall', df, fit_reg=False)
+    sns.set_style("whitegrid")
+    sns.regplot('Precision', 'Recall', df_cl, fit_reg=False)
     plt.xlim([0,1])
     plt.ylim([0,1])
-    plt.savefig(path_results+'roc.pdf', format='pdf')
+    plt.title('Recall - precision (cluster)')
+    plt.savefig(path_results+'roc-clust.pdf', format='pdf')
+    
+    plt.figure()
+    sns.regplot('Precision', 'Recall', df_pix, fit_reg=False)
+    plt.xlim([0,1])
+    plt.ylim([0,1])
+    plt.title('Recall - precision (pixel)')
+    plt.savefig(path_results+'roc-pixel.pdf', format='pdf')
 
     plt.figure()
-    sns.regplot('Mean false positives', 'Recall', df, fit_reg=False)
+    sns.regplot('Mean false clustered positives per image', 'Recall', df_cl, fit_reg=False)
     _,xmax = plt.xlim()
     plt.xlim([0,xmax])
     plt.ylim([0,1])
-    plt.savefig(path_results+'recall-fp.pdf', format='pdf')    
+    plt.title('Recall - false positives (cluster)')
+    plt.savefig(path_results+'recall-fp-clust.pdf', format='pdf')    
+    
+    plt.figure()
+    sns.regplot('Mean false pixel positives per image', 'Recall', df_pix, fit_reg=False)
+    _,xmax = plt.xlim()
+    plt.xlim([0,xmax])
+    plt.ylim([0,1])
+    plt.title('Recall - false positives (pixels)')
+    plt.savefig(path_results+'recall-fp-pix.pdf', format='pdf')    
     
             
 
-def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.01):
+def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=(0.0,0.01)):
     """
     Saves a plot of loss history for in 'path_results' including all subdirectories with a 'n' moving average.
     Note: when models are stopped and restarted, the loss_history include more training than what is in the last saved model.
@@ -68,14 +90,17 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.01):
                     val_loss.extend(list(np.load(subdir+'/loss_history_val.npy')))
             except:
                 continue            
-    
+    print(len(train_loss))
     train_loss_avg = moving_average(np.asarray(train_loss), n=n)    
     if not single_im:
         val_loss_interp = np.interp(range(len(train_loss)), range(train_val_ratio-1,len(train_loss),train_val_ratio), np.asarray(val_loss))
         val_loss_avg = moving_average(val_loss_interp, n=n)  
     
     
-    plt.figure()
+    train_loss_avg = np.square(train_loss_avg)#[:1000]
+    val_loss_avg = np.square(val_loss_avg)#[:1000]
+    
+    plt.figure()#figsize=(10,5))
     plt.gca()
     plt.clf()
     plt.plot(range(1,len(train_loss_avg)+1),train_loss_avg, label='Training', linewidth=0.5)
@@ -90,9 +115,9 @@ def plot_loss_history(path_results, train_val_ratio, single_im, n, ylim=0.01):
         plt.xlabel('Iteration [batch]')
     else:
         plt.xlabel('Iteration [epoch]')
-    plt.ylabel('Loss')
-    plt.ylim(0,ylim)
-    plt.savefig(path_results+'loss_history_avg_n'+str(n)+'.eps', format='eps')
+    plt.ylabel('Loss [MSE]')
+    plt.ylim(ylim)
+    plt.savefig(path_results+'loss_history_avg_mse_n'+str(n)+'_ylim'+str(ylim[1])+'.pdf', format='pdf')
     plt.close()
         
         
