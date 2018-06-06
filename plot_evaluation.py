@@ -8,11 +8,17 @@ Created on Tue May 15 13:22:46 2018
 
 
 
-from figures import plot_evaluation
+from figures import plot_evaluation_metrics
 
 
-path_results = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/ais/interval_5sec/test/test-day/eval/' 
-n_im_day = 148
-n_im_night = 61
+path_results = '/home/kristoffer/Documents/mastersthesis/results/test/test-daynight/eval/' 
+n_im_day = 147
+n_im_night = 56
 
-plot_evaluation(path_results, n_images=n_im_day)
+plot_evaluation_metrics(path_results, n_images=n_im_night+n_im_day, name='daynight')
+
+path_results = '/home/kristoffer/Documents/mastersthesis/results/test/test-day/eval/'
+plot_evaluation_metrics(path_results, n_images=n_im_day, name='day')
+
+path_results = '/home/kristoffer/Documents/mastersthesis/results/test/test-night/eval/' 
+plot_evaluation_metrics(path_results, n_images=n_im_night, name='night')

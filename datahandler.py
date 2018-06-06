@@ -15,7 +15,7 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 from PIL import Image, ImageDraw
-from random import shuffle
+from random import shuffle, randint
 from scipy.misc import imsave, imresize
 import matplotlib.pyplot as plt
 
@@ -28,7 +28,7 @@ from figures import show_images
 class Dataset():
     NUMB_OF_CAMERAS = 4
     NUMB_OF_LENSES = 3
-    IMAGE_SHAPE = (144,192,3) #(192,256,3) #(1920,2560,3)
+    IMAGE_SHAPE = (144,192,3) 
     IMAGE_SHAPE_ORIGINAL = (1920,2560,3)
     IMAGE_EXTENSION = '.jpg'
     
@@ -37,7 +37,6 @@ class Dataset():
         self.path_timestamps = None
         self.path_test = None
         self.timestamp_list = []
-        #self.timestamp_list_shuffled = []
         self.timestamp_list_train = []
         self.timestamp_list_val = []
         self.timestamp_list_test = []
@@ -177,14 +176,7 @@ class Dataset():
         print('Subset of timestamp_list selected. Length: '+str(len(self.timestamp_list)))        
     
     def append_timestamps(self, second):
-        """
-        tl = self.timestamp_list
-        del self.timestamp_list
-
-        self.timestamp_list = []
-        for t in tl:
-            self.timestamp_list.append(t + datetime.timedelta(seconds=second))
-        """
+        
         self.timestamp_list = [t + datetime.timedelta(seconds=second) for t in self.timestamp_list]
         
         return
@@ -313,7 +305,7 @@ class Dataset():
         return masked_batch.astype('float32') / 255., batch    
 
     def compute_ulc(self,grid):
-        """ Computes all ulc for a grid in a terrible way."""
+        """ Computes all ulc (upper left corners) for a grid in a terrible way."""
         rows, columns = grid 
         mask_shape = (self.IMAGE_SHAPE[0]//rows, self.IMAGE_SHAPE[1]//columns)
         
@@ -452,24 +444,26 @@ class Dataset():
         path_data = '/home/kristoffer/Documents/mastersthesis/datasets/new2704/all/interval_5sec/'
         timestamps = np.load(path_data+'timestamps.npy')
         shuffle(timestamps)
-        timestamps = timestamps[:n_images]
+        timestamps = timestamps[:n_images*2]
         i = 0
         for timestamp in timestamps:
-            for cam_lens in self.cams_lenses: 
-                try:
-                    im = dl.load_image(timestamp, dl.TYPE_CAMERA, cam_lens)
-                    batch[i] = im
-                    i+=1                    
-                except:
-                    continue
+            #for cam_lens in self.cams_lenses:
+            cam_lens = self.cams_lenses[randint(0,1)]
+            try:
+                im = dl.load_image(timestamp, dl.TYPE_CAMERA, cam_lens)
+                batch[i] = im
+                i+=1                    
+            except:
+                continue
 
         fig = show_images(batch, rows, cols)
-        fig.savefig('raw_data2.jpg')
+        fig.savefig('raw_data4.jpg')
+        
                 
 if __name__ == "__main__":
     
-    #ds = Dataset([(1,1), (3,1)])
-    #ds.show_raw_data(5,6)
+    ds = Dataset([(1,1), (3,1)])
+    ds.show_raw_data(5,6)
     
     """
     ### TESTS ###
@@ -487,13 +481,12 @@ if __name__ == "__main__":
     Image.fromarray(np.uint8(masked_images[0]*255),'RGB').show()
     """
     
-    
+    """
     ### CREATE NEW DATASET ###
-    ds = Dataset('all')
+    #ds = Dataset('all')
     
-    ds.path_timestamps = 'datasets/new2704/speed>6/interval_5sec/removed_illumination/'
-    
-    
+    #ds.path_timestamps = 'datasets/new2704/speed>6/interval_5sec/removed_illumination/'
+       
     #ds.read_timestamps_file(ds.path_timestamps+'data_timestamp_list_val.npy')
     #ds.timestamp_list = ds.timestamp_list[:1]
     #ds.select_subset(min_speed=6)
@@ -504,6 +497,7 @@ if __name__ == "__main__":
     #ds.append_timestamps(2)
     
     #ds.write_timestamps_file('datasets/new2704/speed>6/interval_5sec/removed_illumination/data_timestamp_list_val2')
+    """
     
     """
     ### MOVE TEST DATA TO DIRECTORY ###
